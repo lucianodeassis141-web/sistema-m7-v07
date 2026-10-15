@@ -404,6 +404,10 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
 <script src="google-chave.js" onerror="window.GOOGLE_MAPS_CHAVE=null"></script>
 <script>
 if (window.GOOGLE_MAPS_CHAVE && window.L){
+  // Google recusou (chave, endereço ou faturamento): volta para o mapa da Esri
+  const semGoogle = () => { if (window.googleRecusado) return; window.googleRecusado = true; if (typeof iniciarMapa==='function' && document.getElementById('mapa-real')) iniciarMapa(); };
+  window.gm_authFailure = semGoogle;
+  const errOrig = console.error; console.error = function(...a){ if (/Google Maps JavaScript API error/.test(String(a[0]))) semGoogle(); return errOrig.apply(this, a); };
   window.googlePronto = () => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js'; s.onload = () => { if (typeof iniciarMapa==='function' && document.getElementById('mapa-real')) iniciarMapa(); }; document.head.appendChild(s); };
   const g = document.createElement('script'); g.async = true;
   g.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(window.GOOGLE_MAPS_CHAVE) + '&loading=async&language=pt-BR&region=BR&callback=googlePronto';
@@ -2222,6 +2226,7 @@ CRM.mapa = meus => {
         <button class="btn prim larga" style="margin-top:10px" onclick="proximoConferir()">Conferir o próximo</button>
         <p class="suave" style="font-size:12px;margin-top:6px">Vai primeiro nas empresas (CNPJ), que aparecem na fachada. Abra o Street View pelo balão: se a loja está ali, clique em "Local certo"; se não, em "Corrigir" e arraste o ponto até a porta.</p></div>
       <div class="cartao" style="margin-top:10px"><h2>Precisão do ponto</h2>
+        <div class="forma"><span>No lugar do comércio (achado pelo nome no Google Maps)</span><b>${prec('lugar')}</b></div>
         <div class="forma"><span>No número exato (conferido no Google Maps)</span><b>${prec('número')}</b></div>
         <div class="forma"><span>Só pela rua (o número não foi achado)</span><b>${prec('rua')}</b></div>
         <div class="forma"><span>Pelo bairro</span><b>${prec('bairro')}</b></div>
@@ -2235,7 +2240,7 @@ function popupCli(c){
   const p = posCli(c), end = [c.e, c.b, c.cid, c.uf||'MG'].filter(Boolean).join(', ');
   const ps = pedsCli(c.id), ult = ps.length ? ps.map(x=>x.data).sort().pop() : null;
   return `<b>${esc(c.n)}</b><br>${esc(c.e||'sem endereço')}<br>${esc(c.b||'bairro não informado')} · ${esc(c.cid)}${c.uf?'/'+esc(c.uf):''}<br>${nomeDoc(c.doc)}${c.pedidook===undefined&&String(c.id).startsWith('ML-')?' · fora do Pedidook':' · cód. '+esc(c.id)}${c.obs?'<br><small>'+esc(c.obs)+'</small>':''}${VR()?`<br><b style="color:${SIT_REAL[sitReal(c)][0]}">${SIT_REAL[sitReal(c)][1]}</b>${ult?`<br>${ps.length} pedido(s) · ${brl(ps.reduce((s,x)=>s+x.total,0))} · última em ${dataBR(ult)}`:''}`:''}${c.ml?'<br><b>Comprador do Mercado Livre</b>':(c.vend.length?'<br>Vendedor no Pedidook: '+esc(c.vend.join(', ')):'')+(c.ecom?'<br>Já comprou pelo e-commerce':'')}
-  <br><small style="color:#777">${E.geoFix?.[c.id]?'Ponto corrigido à mão':E.geoOk?.[c.id]?'Ponto conferido no Street View':(c.fonte==='Google'?'Ponto no número exato, conferido no Google Maps':'Ponto pel'+({rua:'o nome da rua',cidade:'o centro da cidade'}[c.prec]||'o bairro')+' (OpenStreetMap), ainda não conferido')}</small>
+  <br><small style="color:#777">${E.geoFix?.[c.id]?'Ponto corrigido à mão':E.geoOk?.[c.id]?'Ponto conferido no Street View':(c.prec==='lugar'?'Ponto no lugar que o Google Maps achou pelo nome: '+esc(c.lugar||''):c.fonte==='Google'?'Ponto no número exato, conferido no Google Maps':'Ponto pel'+({rua:'o nome da rua',cidade:'o centro da cidade'}[c.prec]||'o bairro')+' (OpenStreetMap), ainda não conferido')}</small>
   <button class="btn peq verde" style="margin-top:8px;width:100%;justify-content:center" onclick="fichaReal('${esc(c.id)}')">Histórico de compras</button>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
     <a class="btn peq prim" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}" target="_blank">Street View</a>
@@ -2255,7 +2260,7 @@ function iniciarMapa(){
   _mapa = L.map(el, {scrollWheelZoom:true});
   if (vista) _mapa.setView(vista.c, vista.z); else _mapa.setView([-20.284,-45.539], 14);
   // o servidor do OpenStreetMap bloqueia arquivo aberto do computador (sem site de origem) e a CARTO pede chave: usa o mapa de ruas da Esri
-  if (L.gridLayer.googleMutant && window.google?.maps) L.gridLayer.googleMutant({type:'roadmap', maxZoom:20}).addTo(_mapa);
+  if (L.gridLayer.googleMutant && window.google?.maps && !window.googleRecusado) L.gridLayer.googleMutant({type:'roadmap', maxZoom:20}).addTo(_mapa);
   else L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Mapa © Esri · dados do OpenStreetMap e outros'}).addTo(_mapa);
   _marc = {};
   ptsMapa().forEach(c=>{ const p = posCli(c);
