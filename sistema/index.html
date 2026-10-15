@@ -237,6 +237,10 @@ td .prodcel{display:flex;gap:10px;align-items:center}
 .n-item .ic{flex:none;width:30px;height:30px;border-radius:8px;background:var(--papel-frio);display:grid;place-items:center;font-weight:800;font-size:12px}
 .n-item .ic.alerta{background:#FDECEC;color:#9B1C1C}
 .spark{display:block;width:100%;height:46px;margin-top:8px}
+.acesso{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;border:1px solid var(--linha);color:var(--suave);cursor:pointer;white-space:nowrap}.acesso.on{background:var(--verde-veu);color:var(--tinta);border-color:transparent}.acesso input{margin:0}
+.acessos td,.acessos th{padding:8px 10px}
+.barra-dia:hover path{fill:var(--verde)}
+.comp.tarefa{cursor:default}.comp.tarefa .hr input{width:18px;height:18px;cursor:pointer}
 .kpi .var{font-size:12px;font-weight:700;color:var(--suave)}
 .kpi .var.sobe{color:var(--verde-tinta)}.kpi .var.desce{color:#C0392B}
 .kpi.escuro .var.sobe{color:var(--verde)}.kpi.escuro .var.desce{color:#FF8A80}
@@ -378,7 +382,7 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
   <div class="rodape">
     Entrar como
     <select id="perfil" onchange="E.usuario=this.value;salvar();ir(TELAS_DE().includes(tela)?tela:TELAS_DE()[0])"></select>
-    Protótipo v0.7 · 14/10/2026<br>
+    Protótipo v0.8 · 15/10/2026<br>
     <a href="referencias/proton-erp.html" target="_blank" style="color:var(--on-dark-dim)">Referência: Próton ERP</a><br>
     <a href="#" onclick="zerar();return false" style="color:var(--on-dark-dim)">Zerar dados de exemplo</a>
   </div>
@@ -393,8 +397,19 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
 <script src="produtos.js"></script>
 <script src="anuncios.js"></script>
 <script src="clientes-reais.js"></script>
+<script src="compradores-ml.js" onerror="window.COMPRADORES_ML=[]"></script>
 <script src="vendas-reais.js" onerror="window.VENDAS_REAIS=window.VENDAS_REAIS||null"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Google Maps só no PC: google-chave.js fica fora do git e da publicação; sem ele o mapa usa a Esri -->
+<script src="google-chave.js" onerror="window.GOOGLE_MAPS_CHAVE=null"></script>
+<script>
+if (window.GOOGLE_MAPS_CHAVE && window.L){
+  window.googlePronto = () => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/leaflet.gridlayer.googlemutant@0.16.0/dist/Leaflet.GoogleMutant.js'; s.onload = () => { if (typeof iniciarMapa==='function' && document.getElementById('mapa-real')) iniciarMapa(); }; document.head.appendChild(s); };
+  const g = document.createElement('script'); g.async = true;
+  g.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(window.GOOGLE_MAPS_CHAVE) + '&loading=async&language=pt-BR&region=BR&callback=googlePronto';
+  document.head.appendChild(g);
+}
+</script>
 <script>
 /* ============================================================
    Sistema M7 · protótipo v0.6 (12/10/2026)
@@ -453,7 +468,7 @@ function textoOferta(id, L){
 function ofertaWhats(id){
   const L = ofertasNicho(id, 5); if (!L.length) return toast('Defina o nicho do cliente na ficha');
   const t = textoOferta(id, L), cv = E.conversas.find(x=>x.cli===id && x.status!=='resolvida');
-  modal(`<h2>Oferta para ${esc(cliente(id).nome)}</h2><p class="suave">${esc(nichoDe(cliente(id)))} · só produto com estoque</p><pre>${esc(t)}</pre><div class="rodape-m"><button class="btn" onclick="navigator.clipboard?.writeText(${JSON.stringify(t).replace(/"/g,'&quot;')}).then(()=>toast('Texto copiado'))">Copiar</button>${cv?`<button class="btn verde" onclick="fecharModal();convSel=${cv.id};abaAt='conversas';ir('atendimento');setTimeout(()=>{const el=document.getElementById('resp');if(el){el.value=${JSON.stringify(t).replace(/"/g,'&quot;')};macroUsada='oferta';}},50)">Pôr na conversa aberta</button>`:''}<button class="btn prim" onclick="fichaCli(${id})">Voltar</button></div>`);
+  modal(`<h2>Oferta para ${esc(cliente(id).nome)}</h2><p class="suave">${esc(nichoDe(cliente(id)))} · só produto com estoque</p><pre>${esc(t)}</pre><div class="rodape-m"><button class="btn" onclick="navigator.clipboard?.writeText(${JSON.stringify(t).replace(/"/g,'&quot;')}).then(()=>toast('Texto copiado'))">Copiar</button>${cv?`<button class="btn verde" onclick="fecharModal();convSel=${cv.id};abaAt='conversas';ir('atendimento');setTimeout(()=>{const el=document.getElementById('resp');if(el){el.value=${JSON.stringify(t).replace(/"/g,'&quot;')};macroUsada='oferta';}},50)">Pôr na conversa aberta</button>`:''}<button class="btn" onclick="marcarOrc(${id})">Mandei para o cliente</button><button class="btn prim" onclick="fichaCli(${id})">Voltar</button></div>`);
 }
 const NICHO_PADRAO = {1:'Restaurante / marmitaria', 2:'Mercearia / mercado', 3:'Lanchonete', 4:'Padaria / confeitaria', 6:'Restaurante / marmitaria', 7:'Mercearia / mercado', 8:'Açougue', 9:'Pizzaria', 10:'Hamburgueria', 11:'Sorveteria / açaiteria', 12:'Bar'};
 
@@ -513,11 +528,12 @@ const ICONES = {
   vendedores:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
   ml:'<path d="M2 12c3-5 7-7 10-7s7 2 10 7c-3 5-7 7-10 7s-7-2-10-7z"/><path d="M7 12l3 2 4-4 3 2"/>',
   financeiro:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/>',
+  apis:'<path d="M8 7V3M16 7V3"/><rect x="5" y="7" width="14" height="6" rx="2"/><path d="M12 13v4a3 3 0 0 1-3 3H7"/>',
   ajustes:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
 };
 const TELAS = [
   ['inicio','Início'],['atendimento','Atendimento'],['pedidos','Pedidos'],['entregas','Entregas'],['produtos','Produtos e estoque'],['compras','Compras'],['ml','Marketplaces'],
-  ['clientes','Clientes (CRM)'],['vendedores','Vendedores'],['financeiro','Financeiro'],['ajustes','Regras e acessos']
+  ['clientes','Clientes (CRM)'],['vendedores','Vendedores'],['financeiro','Financeiro'],['ajustes','Regras e acessos'],['apis','APIs e integrações']
 ];
 
 /* ---------- estado de exemplo ---------- */
@@ -676,6 +692,7 @@ function completar(est){
   }
   if ((est.ver||0) < 6){ completar6(est); est.ver = 6; }
   if ((est.ver||0) < 7){ completar7(est); est.ver = 7; }
+  if ((est.ver||0) < 8){ completar8(est); est.ver = 8; }
 }
 // versão 6: contatos com aniversário, compromissos, automações, notas de compra, ajustes de custo e NCM, regras novas
 function completar6(est){
@@ -729,6 +746,7 @@ function completar6(est){
   est.visitas.forEach(v=>{ if(!v.hora) v.hora = v.ini; });
 }
 completar(E);
+{ const pd = E.perfis.find(p=>p.id==='dono'); if (pd && !pd.telas.includes('apis')) pd.telas.push('apis'); }
 // custo e NCM corrigidos pela nota de compra valem por cima do Pedidook (o original fica guardado)
 P.forEach(p=>{ p.custo0 = p.custo; p.ncm0 = p.ncm; });
 function aplicarAjustes(){ P.forEach(p=>{ p.custo = E.ajCusto?.[p.c] ?? p.custo0; p.ncm = E.ajNcm?.[p.c] ?? p.ncm0; }); }
@@ -816,6 +834,7 @@ function verComp(id){
   modal(`<div class="comp-cab"><span class="ic">${esc(k.tipo)}</span><div class="bt"><button onclick="editComp(${id})">Editar</button><button onclick="tirarComp(${id})">Excluir</button><button onclick="fecharModal()" title="Fechar">✕</button></div></div>
   <div class="comp-corpo"><h2>${esc(k.titulo)}</h2><p class="suave" style="font-size:13px">${esc(k.tipo)} · <a href="#" onclick="fichaCli(${k.cli});return false">${esc(c?.nome||'')}</a></p>
   <p style="margin:12px 0 4px;font-size:14px;padding-bottom:12px;border-bottom:1px solid var(--linha)"><b>${dataBR(k.data)}</b> (${diaSem(k.data)}) às <b>${k.ini}</b> até <b>${k.fim}</b></p>
+  <div class="bloco"><div class="t">Responsável</div><b>${esc(donoComp(k))}</b> · ${stComp(k)[1]}${checkinComp(k)?' · esteve no local (check-in)':''}${k.remarcado?` · remarcado ${k.remarcado}x`:''}${k.auto?` · <span class="pos">marcado sozinho ${k.auto==='conversa'?'pela conversa do WhatsApp':k.auto==='robo'?'pelo robô do WhatsApp':'depois do orçamento'}</span>`:''}</div>
   <div class="bloco"><div class="t">Envolvidos</div><div class="envolvidos">${k.envolvidos.map(n=>`<span class="pessoa"><span class="av ${contatos.has(n)?'cli':''}">${iniciais(n)}</span>${esc(n)}</span>`).join('')}</div></div>
   <div class="bloco"><div class="t">Objetivo</div>${esc(k.objetivo)||'<span class="suave">—</span>'}</div>
   <div class="bloco"><div class="t">Resultado</div>${k.resultado?esc(k.resultado):`<textarea class="campo" id="cp-res" rows="2" placeholder="Como foi? O que ficou combinado?"></textarea><button class="btn peq" style="margin-top:6px" onclick="resultadoComp(${id})">Salvar resultado</button>`}</div>
@@ -827,6 +846,7 @@ function formComp(k){
   return `<h2>${k.id?'Editar compromisso':'Novo compromisso'}</h2>
   <div class="grade g2" style="gap:10px"><div><label class="r">Cliente</label><select class="campo" id="cp-cli" onchange="document.getElementById('cp-chips').innerHTML=chipsEnv(+this.value,[...document.querySelectorAll('.cp-env:checked')].map(x=>x.value))">${E.clientes.filter(x=>x.id!==99).map(x=>`<option value="${x.id}" ${x.id===k.cli?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div>
   <div><label class="r">Tipo</label><select class="campo" id="cp-tipo">${Object.keys(TIPOS_COMP).map(t=>`<option ${t===k.tipo?'selected':''}>${t}</option>`).join('')}</select></div></div>
+  <label class="r" style="margin-top:10px">Responsável</label><select class="campo" id="cp-resp">${pessoasEquipe().map(n=>`<option ${n===(k.resp||(k.id?donoComp(k):nomeAtual()))?'selected':''}>${esc(n)}</option>`).join('')}</select>
   <label class="r" style="margin-top:10px">Título</label><input class="campo" id="cp-tit" value="${esc(k.titulo)}" placeholder="Ex.: apresentar a linha de açaí">
   <div class="grade g3" style="gap:10px;margin-top:10px"><div><label class="r">Dia</label><input class="campo" type="date" id="cp-data" value="${k.data}"></div><div><label class="r">Começa</label><input class="campo" type="time" id="cp-ini" value="${k.ini}"></div><div><label class="r">Termina</label><input class="campo" type="time" id="cp-fim" value="${k.fim}"></div></div>
   <label class="r" style="margin-top:10px">Envolvidos</label><div class="chips" id="cp-chips">${chipsEnv(k.cli, k.envolvidos)}</div>
@@ -837,14 +857,14 @@ function novoComp(cli){ modal(formComp({id:0, cli:cli||E.clientes[0].id, tipo:'V
 function editComp(id){ modal(formComp(E.compromissos.find(x=>x.id===id))); }
 function salvarComp(id){
   const v = x => document.getElementById(x).value, tit = v('cp-tit').trim(); if(!tit) return toast('Escreva o título');
-  const env = [...document.querySelectorAll('.cp-env:checked')].map(x=>x.value); if(!env.length) return toast('Marque quem participa');
-  const d = {cli:+v('cp-cli'), tipo:v('cp-tipo'), titulo:tit, data:v('cp-data')||hoje, ini:v('cp-ini')||'09:00', fim:v('cp-fim')||v('cp-ini')||'09:30', envolvidos:env, objetivo:v('cp-obj').trim(), ed:{quem:perfil().nome, t:new Date().toISOString()}};
+  const env = [...document.querySelectorAll('.cp-env:checked')].map(x=>x.value), resp = v('cp-resp'); if (resp && !env.includes(resp)) env.unshift(resp); if(!env.length) return toast('Marque quem participa');
+  const d = {cli:+v('cp-cli'), tipo:v('cp-tipo'), titulo:tit, data:v('cp-data')||hoje, ini:v('cp-ini')||'09:00', fim:v('cp-fim')||v('cp-ini')||'09:30', envolvidos:env, resp, objetivo:v('cp-obj').trim(), ed:{quem:perfil().nome, t:new Date().toISOString()}};
   let k;
-  if (id){ k = E.compromissos.find(x=>x.id===id); Object.assign(k, d); reg(`Editou o compromisso "${tit}"`, {cli:d.cli}); }
+  if (id){ k = E.compromissos.find(x=>x.id===id); if (k.data!==d.data || k.ini!==d.ini) d.remarcado = (k.remarcado||0) + 1; Object.assign(k, d); reg(`Editou o compromisso "${tit}"`, {cli:d.cli}); }
   else { k = {id:Math.max(0,...E.compromissos.map(x=>x.id))+1, resultado:'', ...d}; E.compromissos.push(k); reg(`Agendou ${d.tipo.toLowerCase()} em ${dataBR(d.data)} às ${d.ini}: ${tit}`, {cli:d.cli}); }
   salvar(); ir(tela); verComp(k.id); toast('Compromisso salvo');
 }
-function resultadoComp(id){ const t = document.getElementById('cp-res').value.trim(); if(!t) return toast('Escreva o resultado'); const k = E.compromissos.find(x=>x.id===id); k.resultado = t; k.ed = {quem:perfil().nome, t:new Date().toISOString()}; reg(`Resultado de "${k.titulo}": ${t}`, {cli:k.cli}); salvar(); ir(tela); verComp(id); }
+function resultadoComp(id){ const t = document.getElementById('cp-res').value.trim(); if(!t) return toast('Escreva o resultado'); const k = E.compromissos.find(x=>x.id===id); k.resultado = t; k.resData = hoje; k.ed = {quem:perfil().nome, t:new Date().toISOString()}; reg(`Resultado de "${k.titulo}": ${t}`, {cli:k.cli}); salvar(); ir(tela); verComp(id); }
 function tirarComp(id){ const k = E.compromissos.find(x=>x.id===id); if(!confirm(`Excluir "${k.titulo}"?`)) return; E.compromissos = E.compromissos.filter(x=>x.id!==id); reg(`Excluiu o compromisso "${k.titulo}"`, {cli:k.cli}); salvar(); fecharModal(); ir(tela); }
 
 /* ---------- automações: o sistema abre a tarefa sozinho ---------- */
@@ -861,7 +881,7 @@ function rodarAutomacoes(){
   if (novas.length) salvar();
   return novas.length;
 }
-function togAuto(id, on){ const a = E.automacoes.find(x=>x.id===id); a.on = on; reg(`Automação "${a.nome}": ${on?'ligada':'desligada'}`); if(on){ autoRodou = false; const n = rodarAutomacoes(); if(n) toast(n+' tarefa(s) aberta(s) agora'); } salvar(); ir('ajustes'); }
+function togAuto(id, on){ const a = E.automacoes.find(x=>x.id===id); a.on = on; reg(`Automação "${a.nome}": ${on?'ligada':'desligada'}`); if(on){ autoRodou = false; const n = rodarAutomacoes(); if(n) toast(n+' tarefa(s) aberta(s) agora'); } salvar(); if(document.getElementById('modal').classList.contains('aberto')){ if(tela==='clientes' && modoCli==='funil') return regrasFunil(); fecharModal(); } ir(tela); }
 
 /* ---------- visita: a localização vai junto com o pedido ou com o "não comprou" ---------- */
 const MOT_VISITA = ['Estoque ainda cheio','Achou caro','Comprou de outro','Fechado / sem responsável','Vai pedir pelo WhatsApp'];
@@ -1021,14 +1041,16 @@ const margem = p => p.custo && p.p ? (p.p-p.custo)/p.p : NaN;
 
 /* ---------- nota fiscal, cancelamento e liberação de desconto ---------- */
 function faltaFiscal(ped){ return ped.itens.map(i=>porCod[i.c]).filter(p=>prontidao(p).length); }
-function faturar(id){
-  const p = E.pedidos.find(x=>x.id===id); if(!p || p.nf) return;
+function faturar(id, lote){
+  const p = E.pedidos.find(x=>x.id===id); if(!p || p.nf) return !!p;
   const sem = faltaFiscal(p);
+  if (sem.length && lote) return false;
   if (sem.length) return modal(`<h2>Nota travada</h2><p>Falta dado fiscal no cadastro de ${sem.length} produto(s). A SEFAZ recusa a nota sem ele.</p>${sem.map(x=>`<div class="forma"><span>${esc(x?.n||'?')}<br><small class="suave">cód. ${x?.c}</small></span><span class="tag alerta">falta ${prontidao(x).join(' e ')}</span></div>`).join('')}<div class="rodape-m"><button class="btn prim" onclick="fecharModal()">Entendi</button></div>`);
   p.nf = {n:++E.nfSeq, data:hoje, xml:true, chave:chaveNF(), api:true, mlEnviada: !!p.ml};
   p.itens.forEach(i=>mover(i.c, -i.q, 'venda', p.id));
   p.status = 'faturado';
   reg(`Emitiu a NF-e ${p.nf.n} do pedido #${p.id}`, {ped:p.id, cli:p.cli});
+  if (lote) return true;
   salvar(); fecharModal(); ir(tela); toast(`NF-e ${p.nf.n} autorizada pela API fiscal (homologação)${p.ml?' e XML enviado ao ML':''}. Estoque baixado.`);
 }
 function cancelar(id){
@@ -1113,6 +1135,8 @@ let tela = 'inicio';
 function ir(t){
   if (!TELAS_DE().includes(t) && t!=='novo') t = TELAS_DE()[0];
   tela = t;
+  const nFun = funilAuto(), nComp = rodarCompConversa();
+  if (nFun || nComp) toast([nFun?nFun+' cliente(s) mudaram de etapa sozinhos no funil':'', nComp?nComp+' compromisso(s) entraram sozinhos na agenda':''].filter(Boolean).join(' · '));
   rodarAutomacoes();
   rodarAgendadas();
   document.getElementById('perfil').innerHTML = E.perfis.map(p=>`<option value="${p.id}" ${p.id===E.usuario?'selected':''}>${esc(p.nome)}</option>`).join('');
@@ -1150,7 +1174,9 @@ function pendencias(){
   const ag = E.pedidos.filter(p=>p.status==='aguardando');
   if (aprova() && ag.length) L.push({ic:'!', al:1, t:`${ag.length} pedido(s) esperando você liberar (desconto ou crédito)`, s:ag.map(p=>`#${p.id} · ${cliente(p.cli)?.nome}`).join(' · '), go:`abaPed='aguardando';ir('pedidos')`});
   const tf = E.tarefas.filter(t=>!t.feita && t.data<=hoje);
-  if (tf.length) L.push({ic:'☎', al:tf.some(t=>t.data<hoje), t:`${tf.length} tarefa(s) de cliente para hoje${tf.some(t=>t.data<hoje)?', com atraso':''}`, s:tf.map(t=>cliente(t.cli)?.nome+': '+t.txt).join(' · '), go:`modoCli='tarefas';ir('clientes')`});
+  if (tf.length) L.push({ic:'☎', al:tf.some(t=>t.data<hoje), t:`${tf.length} tarefa(s) de cliente para hoje${tf.some(t=>t.data<hoje)?', com atraso':''}`, s:tf.map(t=>cliente(t.cli)?.nome+': '+t.txt).join(' · '), go:`modoCli='agenda';ir('clientes')`});
+  const ae = aprova() ? atrasEquipe() : {c:[], t:[]};
+  if (ae.c.length || ae.t.length) L.push({ic:'▦', al:1, t:`Equipe: ${ae.c.length} compromisso(s) sem resultado e ${ae.t.length} tarefa(s) atrasada(s)`, s:[...new Set([...ae.c.map(donoComp), ...ae.t.map(t=>pessoaTarefa(t.resp))])].join(' · '), go:`modoCli='agenda';agVista='equipe';ir('clientes')`});
   const sp = E.clientes.filter(c=>['novo','orcamento','negociacao'].includes(c.etapa) && !E.tarefas.some(t=>t.cli===c.id && !t.feita));
   if (sp.length) L.push({ic:'?', t:`${sp.length} negociação(ões) sem próximo passo`, s:sp.map(c=>c.nome).join(' · '), go:`modoCli='funil';ir('clientes')`});
   const cv = E.conversas.filter(c=>espera(c)>SLA_MIN);
@@ -1206,7 +1232,7 @@ function novidadesHTML(){
     ['$','Crédito do cliente na tela','Clique no cliente e veja quanto ele ainda pode pedir a prazo. Passou do limite ou tem boleto vencido, vai para o Márcio liberar.','fichaCli(2)'],
     ['♥','Contatos e aniversários','Cada cliente com dono, comprador e financeiro, e o aniversário de cada um com a mensagem pronta.','fichaCli(1)'],
     ['▦','Agenda de compromissos','Visita, ligação e vídeo com horário, envolvidos, objetivo, resultado e quem editou por último.',"modoCli='agenda';ir('clientes')"],
-    ['⚙','Automações','O sistema abre a tarefa sozinho: cliente que passou do ritmo, negociação parada, boleto vencido.',"modoCli='tarefas';ir('clientes')"],
+    ['⚙','Automações','O sistema abre a tarefa sozinho: cliente que passou do ritmo, negociação parada, boleto vencido.',"modoCli='agenda';ir('clientes')"],
     ['◎','Visita no pedido e mapa da carteira','A localização vai junto com o pedido ou com o "não comprou". Mapa com a cor de cada cliente.',"ir('vendedores')"],
     ['NF','Notas de compra','A nota do fornecedor chega sozinha: confere, dá entrada e o custo e o NCM se atualizam.',"abaCompra='notas';ir('compras')"],
     ['A','Ponto de pedido e curva ABC','O que comprar e quanto, pela venda de cada produto e pelo prazo do fornecedor.',"abaCompra='repor';ir('compras')"],
@@ -1312,6 +1338,7 @@ VIEWS.atendimento = () => {
         ${cv.status!=='resolvida'?`<button class="btn peq" onclick="transferir(${cv.id})">Transferir</button><button class="btn peq" onclick="resolver(${cv.id})">Resolver</button>`:`<button class="btn peq" onclick="reabrir(${cv.id})">Reabrir</button>`}</div></div>
       <div class="msgs" id="msgs">${cv.msgs.map(m=>`<div class="msg ${m.de}">${m.de==='int'?realcaMencao(m.txt):esc(m.txt)}${m.de!=='sis'?`<small>${m.de==='bot'?'robô · ':''}${m.por?esc(m.por)+' · ':''}${m.agendada?'agendada · ':''}${m.macro?'resposta pronta · ':''}${m.oferta?'oferta · ':''}${new Date(m.t).toTimeString().slice(0,5)}</small>`:''}</div>`).join('')}
         ${cv.csat?`<div class="msg sis">Cliente avaliou: ${'★'.repeat(cv.csat)}${'☆'.repeat(5-cv.csat)}</div>`:''}</div>
+      ${sugestaoComp(cv)}
       ${cv.bot==='menu'?`<div class="simula"><b>O robô mandou o menu.</b> Simular a resposta do cliente: ${E.triagem.opcoes.map((o,i)=>`<button class="btn peq" title="${esc(o.txt)}" onclick="escolherOpcao(${cv.id},${i})">${i+1}. ${esc(o.txt)}</button>`).join('')}</div>`:''}
       <div class="modo-resp"><button class="${modoResp==='cliente'?'on':''}" onclick="modoResp='cliente';ir('atendimento')">Responder ao cliente</button><button class="int ${modoResp==='nota'?'on':''}" onclick="modoResp='nota';ir('atendimento')">Nota interna</button></div>
       ${modoResp==='nota' ? `<div class="macros">${[...new Set([...E.atendentes, ...VEND().filter(v=>v.id!=='loja'&&!v.canal).map(v=>v.nome)])].map(p=>`<button onclick="const el=document.getElementById('resp');el.value+='@${esc(p)} ';el.focus()">@${esc(p)}</button>`).join('')}</div>
@@ -1325,6 +1352,7 @@ VIEWS.atendimento = () => {
       <label class="r" style="margin-top:12px">Etiquetas da conversa <a href="#" style="text-transform:none;letter-spacing:0;font-weight:500" onclick="gerirEtiquetas();return false">editar</a></label><div style="display:flex;gap:6px;flex-wrap:wrap">${E.etiquetas.filter(x=>etqTodas||cv.tags.includes(x.n)).map(x=>chipEtq(x.n, cv.tags.includes(x.n), `onclick="togTag(${cv.id},'${esc(x.n)}')"`)).join('')}${botaoEtq()}</div>
       ${cli?`<label class="r" style="margin-top:12px">Etiquetas do contato</label>${etqCliHTML(cli.id)}`:''}
       ${(()=>{ const ag = E.agendadas.filter(a=>a.status==='agendada' && cv.cli && a.cli===cv.cli); return ag.length?`<label class="r" style="margin-top:12px">Agendadas para ele</label>${ag.map(a=>`<div class="forma" style="font-size:13px"><span>${esc(a.motivo)}<br><small class="suave">${new Date(a.quando).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></span><button class="x" title="Cancelar" onclick="cancelarAgendada(${a.id})">×</button></div>`).join('')}`:''; })()}
+      ${(()=>{ const ks = cli ? E.compromissos.filter(k=>k.cli===cli.id && k.data>=hoje && !k.resultado).sort((a,b)=>(a.data+a.ini).localeCompare(b.data+b.ini)) : []; return ks.length?`<label class="r" style="margin-top:12px">Na agenda</label>${ks.map(k=>`<div class="forma" style="font-size:13px;cursor:pointer" onclick="verComp(${k.id})"><span>${esc(k.tipo)} · ${esc(donoComp(k))}<br><small class="suave">${diaSem(k.data)} ${dataBR(k.data)} às ${k.ini}</small></span>${k.auto?'<span class="tag ok">sozinho</span>':''}</div>`).join('')}`:''; })()}
       ${cli?`<h3 style="margin:18px 0 6px">${esc(cli.nome)}</h3><p class="suave" style="font-size:13px">${cli.tipo} · ${esc(cli.cidade)} · ${esc(vendedor(cli.vend)?.nome)}${nichoDe(cli)?' · '+esc(cli.nicho):''}<br>${ETAPAS[cli.etapa]}</p>
         <div class="forma"><span>Última compra</span><b>${dataBR(ultCompra(cli.id))}</b></div>
         ${creditoHTML(cli.id, true)}
@@ -1356,8 +1384,11 @@ function pedidoDaConversa(id){ const cv=E.conversas.find(c=>c.id===id); const m=
 function novaConversa(){
   const pool = P.filter(p=>p.f && p.est>0), pick = () => pool[Math.floor(Math.random()*pool.length)];
   const cs = E.clientes.filter(c=>c.id!==99), c = cs[Math.floor(Math.random()*cs.length)];
-  const cat = Math.random()<.5;
+  const r = Math.random(), cat = r>=.6;
   const id = Math.max(0,...E.conversas.map(x=>x.id))+1;
+  const abre = cv => { E.conversas.push(cv); if (!cv.fila) roboRecebe(cv); convSel=id; filtroConv='abertas'; filtroFila=''; filtroEtq=''; abaAt='conversas'; modoResp='cliente'; salvar(); ir('atendimento'); };
+  if (r<.2) return abre({id, cli:null, nome:'Contato novo '+id+' (exemplo)', fone:'(37) 9xxxx-'+String(id).padStart(4,'0'), atendente:null, status:'aberta', tags:[], csat:null, fila:null, bot:null, msgs:[{de:'cli', t:new Date().toISOString(), txt:'Boa tarde! Vocês entregam em Arcos? Queria um orçamento de marmitex.'}]});
+  if (r<.4) return abre({id, cli:c.id, nome:c.nome, fone:'(37) 9xxxx-'+String(id).padStart(4,'0'), atendente:null, status:'aberta', tags:[], csat:null, fila:'pedidos', bot:null, msgs:[{de:'cli', t:new Date().toISOString(), txt:['Pode passar aqui amanhã às 9h? Quero ver a linha de açaí.', 'Me liga sexta às 14h pra fechar o pedido do mês.', 'Dá pra fazer uma chamada de vídeo segunda às 10h pra ver o catálogo?'][Math.floor(Math.random()*3)]}]});
   const cv = {id, cli:c.id, nome:c.nome, fone:'(37) 9xxxx-'+String(id).padStart(4,'0'), atendente:null, status:'aberta', tags:cat?['pedido catálogo']:[], csat:null, fila:null, bot:null,
     msgs:[{de:'cli', t:new Date().toISOString(), txt: cat ? msgCatalogo(c.nome,[{p:pick(),q:2},{p:pick(),q:5}]) : 'Oi, vocês entregam hoje ainda?'}]};
   E.conversas.push(cv); roboRecebe(cv);
@@ -1439,7 +1470,7 @@ function roboRecebe(cv){
 function escolherOpcao(id, i){
   const cv = E.conversas.find(c=>c.id===id), op = E.triagem.opcoes[i], t = new Date().toISOString();
   cv.msgs.push({de:'cli', t, txt:String(i+1)});
-  cv.msgs.push({de:'bot', t, txt:op.resp});
+  cv.msgs.push({de:'bot', t, txt:op.acao==='visita' ? roboVisita(cv) : op.resp});
   cv.bot = null; cv.fila = op.fila;
   cv.msgs.push({de:'sis', t, txt:'Robô passou para a fila ' + (filaDe(op.fila)?.nome || '—')});
   distribuir(cv);
@@ -1770,7 +1801,7 @@ function verPedido(id){
   ${hist.length?`<h3 style="margin:14px 0 6px">Histórico</h3><div class="tempo">${hist.map(l=>`<div>${new Date(l.t).toLocaleString('pt-BR').slice(0,17)} · <b>${esc(l.quem)}</b> · ${esc(l.acao)}</div>`).join('')}</div>`:''}
   ${p.ml?'':`<label class="r" style="margin-top:16px">Como vai no WhatsApp</label><pre>${esc(textoWhats(p))}</pre>`}
   <div class="rodape-m">${!['entregue','cancelado'].includes(p.status)?`<button class="btn" onclick="if(confirm('Cancelar o pedido #${p.id}?'))cancelar(${p.id})">Cancelar pedido</button>`:''}
-    ${['novo','separando'].includes(p.status)?`<button class="btn prim" onclick="faturar(${p.id})">Emitir NF-e</button>`:''}
+    ${['novo','separando'].includes(p.status)?`<button class="btn prim" onclick="faturar(${p.id})">Emitir NF-e</button>`:''}${p.nf?`<button class="btn" onclick="danfe(${p.id})">DANFE</button><button class="btn" onclick="baixarXML(${p.id})">XML</button>`:''}
     ${p.ml?'':`<button class="btn" onclick="copiar(${p.id})">Copiar texto</button>`}<button class="btn prim" onclick="fecharModal()">Fechar</button></div>`, true);
 }
 function copiar(id){ navigator.clipboard?.writeText(textoWhats(E.pedidos.find(p=>p.id===id))).then(()=>toast('Texto copiado')); }
@@ -1877,7 +1908,7 @@ function fecharPedido(){
   E.pedidos.push(p); if(!espera) gerarTitulos(p, E);
   const cv = R.conv && E.conversas.find(x=>x.id===R.conv);
   if (cv){ cv.pedido = id; cv.msgs.push({de:'sis', t:new Date().toISOString(), txt:`Pedido #${id} criado · ${brl(totalPedido(p))}`}); if(!cv.tags.includes('pedido criado')) cv.tags.push('pedido criado'); }
-  const c=cliente(p.cli); if(c && c.etapa!=='ativo'){ reg(`${c.nome}: ${ETAPAS[c.etapa]} → Cliente ativo (primeiro pedido)`, {cli:c.id}); c.etapa='ativo'; c.ganho=hoje; }
+  const c=cliente(p.cli); if(c && c.etapa!=='ativo') moverEtapa(c, 'ativo', 'fez pedido', false);
   reg(`Criou o pedido #${id} (${brl(totalPedido(p))})${espera?', esperando liberação':''}`, {ped:id, cli:p.cli});
   salvar(); R=null; ir('pedidos'); verPedido(id); toast(espera?'Pedido #'+id+' enviado para o Márcio liberar':'Pedido #'+id+' criado');
 }
@@ -2111,28 +2142,28 @@ function textoCompra(){
 /* ============================================================ CLIENTES: funil, tarefas, ficha com histórico e relatório */
 const ETAPAS = {novo:'Novo contato', orcamento:'Orçamento enviado', negociacao:'Negociação', ativo:'Cliente ativo', inativo:'Parou de comprar', perdido:'Perdido'};
 const ABERTAS = ['novo','orcamento','negociacao'];
-const ORIGENS = ['Indicação','Instagram','Google','Catálogo online','Vendedor na rua','Loja','Mercado Livre','Outro'];
+const ORIGENS = ['Indicação','Instagram','Google','WhatsApp','Catálogo online','Vendedor na rua','Loja','Mercado Livre','Outro'];
 const MOTIVOS_PERDA = ['Achou caro','Comprou de outro','Prazo de entrega','Não tinha o produto','Sem resposta','Outro'];
 let modoCli = 'funil';
 const proxPasso = id => E.tarefas.filter(t=>t.cli===id && !t.feita).sort((a,b)=>a.data.localeCompare(b.data))[0];
 VIEWS.clientes = () => {
   const meus = (E.usuario==='v1' ? E.clientes.filter(c=>c.vend==='v1') : E.clientes);
   return topo('Clientes', 'Funil, agenda, tarefas, mapa da carteira, histórico completo e relatório',
-  `${[['funil','Funil'],['agenda','Agenda'],['tarefas','Tarefas'],['lista','Lista'],['mapa','Mapa'],['relatorio','Relatório']].map(([k,n])=>`<button class="btn ${modoCli===k?'prim':''}" onclick="modoCli='${k}';ir('clientes')">${n}</button>`).join('')}<button class="btn verde" onclick="novoCliente()">+ Cliente</button>`) +
-  (CRM[modoCli]||CRM.funil)(meus);
+  `${[['funil','Funil'],['agenda','Agenda e tarefas'],['lista','Lista'],['mapa','Mapa'],['relatorio','Relatório']].map(([k,n])=>`<button class="btn ${modoCli===k?'prim':''}" onclick="modoCli='${k}';ir('clientes')">${n}</button>`).join('')}<button class="btn verde" onclick="novoCliente()">+ Cliente</button>`) +
+  (CRM[modoCli==='tarefas'?'agenda':modoCli]||CRM.funil)(meus);
 };
 const CRM = {};
-CRM.funil = meus => `<p class="suave" style="margin-bottom:12px;font-size:14px">Arraste o cartão para mudar a etapa. Negociação sem próximo passo fica marcada em vermelho. Perder pede o motivo.</p><div class="funil" style="grid-template-columns:repeat(6,minmax(190px,1fr))">${Object.entries(ETAPAS).map(([k,n])=>{
+CRM.funil = meus => `<div class="cartao" style="margin-bottom:12px;padding:12px 16px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><span style="font-size:14px"><b>Funil automático.</b> <span class="suave">O cartão anda sozinho pelo que acontece: mensagem nova, orçamento, resposta, pedido, tempo sem comprar. Arrastar continua valendo.</span></span><button class="btn peq" onclick="regrasFunil()">Regras do funil (${E.automacoes.filter(a=>a.id.startsWith('f-')&&a.on).length} ligadas)</button></div></div><p class="suave" style="margin-bottom:12px;font-size:13px">Negociação sem próximo passo fica marcada em vermelho. Perder pede o motivo.</p><div class="funil" style="grid-template-columns:repeat(6,minmax(190px,1fr))">${Object.entries(ETAPAS).map(([k,n])=>{
     const cs=meus.filter(c=>c.etapa===k && c.id!==99), val=cs.reduce((s,c)=>s+(c.valor||0),0);
     return `<div class="coluna" ondragover="event.preventDefault();this.classList.add('alvo')" ondragleave="this.classList.remove('alvo')" ondrop="soltar(event,'${k}')"><h3><span>${n}</span><span class="suave">${cs.length}</span></h3>${ABERTAS.includes(k)?`<p class="suave" style="font-size:12px;margin:-6px 0 8px">${brl(val)} em jogo</p>`:''}
     ${cs.map(c=>{const v=vencidosCli(c.id).length, t=proxPasso(c.id);return `<div class="ficha" draggable="true" ondragstart="event.dataTransfer.setData('id',${c.id})" onclick="fichaCli(${c.id})"><b>${esc(c.nome)}</b>${c.tipo} · ${esc(c.cidade)}${c.valor&&ABERTAS.includes(k)?` · <b>${brl(c.valor)}</b>`:''}${v?` <span class="tag alerta">${v} vencido</span>`:''}<br>
-      ${ABERTAS.includes(k)?(t?`<span class="${t.data<hoje?'verm':'suave'}">${t.data<hoje?'atrasado':dataBR(t.data)}: ${esc(t.txt)}</span>`:'<span class="tag alerta">sem próximo passo</span>'):k==='perdido'?`<span class="suave">${esc(c.perda?.motivo||'sem motivo')}</span>`:`<span class="suave">${ultCompra(c.id)?'Última compra '+dataBR(ultCompra(c.id)):'Sem compra'}</span>`}</div>`}).join('')}</div>`}).join('')}</div>`;
+      ${ABERTAS.includes(k)?(t?`<span class="${t.data<hoje?'verm':'suave'}">${t.data<hoje?'atrasado':dataBR(t.data)}: ${esc(t.txt)}</span>`:'<span class="tag alerta">sem próximo passo</span>'):k==='perdido'?`<span class="suave">${esc(c.perda?.motivo||'sem motivo')}</span>`:`<span class="suave">${ultCompra(c.id)?'Última compra '+dataBR(ultCompra(c.id)):'Sem compra'}</span>`}${c.auto&&c.auto.data>=addDias(hoje,-7)?`<br><span class="tag ok" style="margin-top:4px;white-space:normal;line-height:1.3">andou sozinho: ${esc(c.auto.motivo)}</span>`:''}</div>`}).join('')}</div>`}).join('')}</div>`;
 CRM.lista = meus => `<div class="cartao tabela"><table><tr><th>Cliente</th><th>Cidade</th><th>Nicho</th><th>Origem</th><th>Vendedor</th><th>Tabela</th><th class="num">Desc.</th><th class="num">Comprou no mês</th><th class="num">Em aberto</th><th>Etapa</th></tr>
     ${meus.map(c=>`<tr class="clica" onclick="fichaCli(${c.id})"><td><b>${esc(c.nome)}</b><br><small class="suave">${c.tipo}</small></td><td>${esc(c.cidade)}</td><td>${esc(c.nicho||'—')}</td><td class="suave">${esc(c.origem||'—')}</td><td>${esc(vendedor(c.vend)?.nome)}</td><td>${E.tabelas.find(t=>t.id===c.tabela)?.nome}</td><td class="num">${c.desc?c.desc+'%':'—'}</td><td class="num">${brl(E.pedidos.filter(p=>p.cli===c.id&&doMes(p)).reduce((s,p)=>s+totalPedido(p),0))}</td><td class="num ${vencidosCli(c.id).length?'verm':''}">${brl(abertoCli(c.id))}</td><td><span class="tag">${ETAPAS[c.etapa]}</span></td></tr>`).join('')}</table></div>`;
 CRM.tarefas = meus => {
   const ids = new Set(meus.map(c=>c.id)), ab = E.tarefas.filter(t=>!t.feita && ids.has(t.cli)).sort((a,b)=>a.data.localeCompare(b.data)), ft = E.tarefas.filter(t=>t.feita && ids.has(t.cli)).slice(-6).reverse();
   return `<div class="grade g32" style="align-items:start"><div class="cartao"><h2>Próximos passos</h2>
-    ${ab.map(t=>`<div class="forma"><span><b class="${t.data<hoje?'verm':''}">${t.data<hoje?'Atrasado · ':t.data===hoje?'Hoje · ':''}${dataBR(t.data)}</b> · <a href="#" onclick="fichaCli(${t.cli});return false">${esc(cliente(t.cli)?.nome)}</a><br><small class="suave">${esc(t.txt)} · ${esc(vendedor(t.resp)?.nome||t.resp)}</small>${t.auto?' <span class="tag ok" title="Aberta sozinha por uma automação">automática</span>':''}</span><button class="btn peq" onclick="feita(${t.id})">Feito</button></div>`).join('')||'<p class="suave">Nada agendado.</p>'}
+    ${ab.map(t=>`<div class="forma"><span><b class="${t.data<hoje?'verm':''}">${t.data<hoje?'Atrasado · ':t.data===hoje?'Hoje · ':''}${dataBR(t.data)}</b> · <a href="#" style="color:inherit" onclick="fichaCli(${t.cli});return false">${esc(cliente(t.cli)?.nome)}</a><br><small class="suave">${esc(t.txt)} · ${esc(vendedor(t.resp)?.nome||t.resp)}</small>${t.auto?' <span class="tag ok" title="Aberta sozinha por uma automação">automática</span>':''}</span><button class="btn peq" onclick="feita(${t.id})">Feito</button></div>`).join('')||'<p class="suave">Nada agendado.</p>'}
     ${ft.length?`<h3 style="margin:16px 0 6px">Feitas</h3>${ft.map(t=>`<div class="forma"><span class="suave">${dataBR(t.feita)} · ${esc(cliente(t.cli)?.nome)} · ${esc(t.txt)}</span><span class="tag ok">feito</span></div>`).join('')}`:''}</div>
     <div><div class="cartao"><h2>Nova tarefa</h2>${formTarefa()}</div>
       <div class="cartao" style="margin-top:16px"><h2>Automações ligadas</h2>${(E.automacoes||[]).map(a=>`<div class="forma"><span><b>${esc(a.nome)}</b><br><small class="suave">${esc(a.acao)}</small></span><span class="tag ${a.on?'ok':''}">${a.on?'ligada':'desligada'}</span></div>`).join('')}<p class="suave" style="font-size:12px;margin-top:8px">Liga e desliga em Regras e acessos. A tarefa automática some quando alguém marca Feito.</p></div></div></div>`;
@@ -2148,15 +2179,21 @@ CRM.agenda = meus => {
     <div>${anivHTML()}<div class="cartao" style="margin-top:16px"><h2>Já aconteceram</h2>${L.filter(k=>k.resultado).sort((a,b)=>b.data.localeCompare(a.data)).slice(0,5).map(compHTML).join('')||'<p class="suave">Nada ainda.</p>'}</div></div></div>`;
 };
 /* ---------- mapa: clientes reais do Pedidook (exportação de 12/10/2026) ou os de exemplo ---------- */
-let mapaFonte = 'reais', _mapa = null, filtroDoc = {CNPJ:true, CPF:true, '':true}, buscaMapa = '', corPor = 'situacao', filtroSit = {ativo:true, emdia:true, atrasado:true, sumiu:true, nunca:true};
-const CR = () => window.CLIENTES_REAIS || [];
+let mostraML = true, mapaFonte = 'reais', _mapa = null, filtroDoc = {CNPJ:true, CPF:true, '':true}, buscaMapa = '', corPor = 'situacao', filtroSit = {ativo:true, emdia:true, atrasado:true, sumiu:true, nunca:true};
+// compradores da conta da M7 no Mercado Livre (compradores-ml.js): quem já tem cadastro no Pedidook ganha a marca e a posição que faltar; os outros entram como clientes novos
+let _cr = null;
+const CR = () => { if (_cr) return _cr; const base = window.CLIENTES_REAIS || [], ML = window.COMPRADORES_ML || [];
+  if (!ML.length) return base;
+  const vinc = {}; ML.forEach(m=>{ if (m.pedidook) vinc[m.pedidook] = m; });
+  return _cr = base.map(c=>{ const m = vinc[c.id]; return !m ? c : {...c, ml:true, conta:true, uf:m.uf, ...(c.lat ? {} : {lat:m.lat, lng:m.lng, prec:m.prec, fonte:m.fonte})}; }).concat(ML.filter(m=>!m.pedidook)); };
 const corDoc = d => d==='CNPJ' ? '#22A06B' : d==='CPF' ? '#E5487A' : '#6F7F6F';
 const nomeDoc = d => d==='CNPJ' ? 'Empresa (CNPJ)' : d==='CPF' ? 'Pessoa física (CPF)' : 'Sem documento no cadastro';
 const posCli = c => E.geoFix?.[c.id] || (c.lat ? {lat:c.lat, lng:c.lng} : null);
 const conferido = c => !!(E.geoOk?.[c.id] || E.geoFix?.[c.id] || c.fonte==='Google');
 const usaSit = () => corPor==='situacao' && !!VR();
-const corCli = c => usaSit() ? SIT_REAL[sitReal(c)][0] : corDoc(c.doc);
-const ptsMapa = () => CR().filter(c=>posCli(c) && (usaSit() ? filtroSit[sitReal(c)] : filtroDoc[c.doc]) && (!buscaMapa || sem(c.n+' '+c.b+' '+(c.e||'')).includes(sem(buscaMapa))));
+const COR_ML = '#FFE600';   // comprador do Mercado Livre: cor própria nos dois modos, não entra em situação nem em empresa ou pessoa
+const corCli = c => c.ml ? COR_ML : usaSit() ? SIT_REAL[sitReal(c)][0] : corDoc(c.doc);
+const ptsMapa = () => CR().filter(c=>posCli(c) && (c.ml ? mostraML : usaSit() ? filtroSit[sitReal(c)] : filtroDoc[c.doc]) && (!buscaMapa || sem(c.n+' '+c.b+' '+(c.e||'')).includes(sem(buscaMapa))));
 let _marc = {};
 CRM.mapa = meus => {
   const temReais = CR().length > 0;
@@ -2172,8 +2209,9 @@ CRM.mapa = meus => {
       <span style="display:flex;gap:6px;flex-wrap:wrap"><input class="campo" style="width:200px" placeholder="Buscar cliente ou bairro" value="${esc(buscaMapa)}" onchange="buscaMapa=this.value;ir('clientes')"><button class="btn peq" onclick="verTudoMapa()">Ver todas as cidades</button></span></div>
       <div id="mapa-real"></div>
       ${VR()?`<div class="filtros" style="margin:10px 0 0">Cor por: <button class="btn peq ${corPor==='situacao'?'prim':''}" onclick="corPor='situacao';ir('clientes')">Situação de compra</button><button class="btn peq ${corPor!=='situacao'?'prim':''}" onclick="corPor='doc';ir('clientes')">Empresa ou pessoa</button></div>`:''}
-      <div class="legenda">${usaSit() ? Object.entries(SIT_REAL).map(([k,[cor,nome]])=>`<label class="chk" style="font-size:12px"><input type="checkbox" ${filtroSit[k]?'checked':''} onchange="filtroSit['${k}']=this.checked;ir('clientes')"><i style="background:${cor}"></i>${nome} (${noMapa.filter(c=>sitReal(c)===k).length})</label>`).join('')
-        : ['CNPJ','CPF',''].map(d=>`<label class="chk" style="font-size:12px"><input type="checkbox" ${filtroDoc[d]?'checked':''} onchange="filtroDoc['${d}']=this.checked;ir('clientes')"><i style="background:${corDoc(d)}"></i>${nomeDoc(d)} (${noMapa.filter(c=>c.doc===d).length})</label>`).join('')}</div>
+      <div class="legenda">${usaSit() ? Object.entries(SIT_REAL).map(([k,[cor,nome]])=>`<label class="chk" style="font-size:12px"><input type="checkbox" ${filtroSit[k]?'checked':''} onchange="filtroSit['${k}']=this.checked;ir('clientes')"><i style="background:${cor}"></i>${nome} (${noMapa.filter(c=>!c.ml && sitReal(c)===k).length})</label>`).join('')
+        : ['CNPJ','CPF',''].map(d=>`<label class="chk" style="font-size:12px"><input type="checkbox" ${filtroDoc[d]?'checked':''} onchange="filtroDoc['${d}']=this.checked;ir('clientes')"><i style="background:${corDoc(d)}"></i>${nomeDoc(d)} (${noMapa.filter(c=>!c.ml && c.doc===d).length})</label>`).join('')}
+        <label class="chk" style="font-size:12px"><input type="checkbox" ${mostraML?'checked':''} onchange="mostraML=this.checked;ir('clientes')"><i style="background:${COR_ML};border:2px solid #2D3277"></i>Mercado Livre (${noMapa.filter(c=>c.ml).length})</label></div>
       <p class="suave" style="font-size:12px;margin-top:6px">${pts.length} ponto(s) na tela. Clique no ponto para ver o cliente e abrir o caminho no Google Maps.</p></div>
     <div><div class="grade g2" style="gap:10px">
         <div class="cartao kpi escuro"><div class="rot">Clientes no cadastro</div><div class="val">${L0.length}</div><div class="sub">${noMapa.length} no mapa</div></div>
@@ -2194,10 +2232,10 @@ CRM.mapa = meus => {
 };
 POS.clientes = () => { if (modoCli==='mapa' && mapaFonte==='reais') iniciarMapa(); else if (_mapa){ _mapa.remove(); _mapa = null; } };
 function popupCli(c){
-  const p = posCli(c), end = [c.e, c.b, c.cid, 'MG'].filter(Boolean).join(', ');
+  const p = posCli(c), end = [c.e, c.b, c.cid, c.uf||'MG'].filter(Boolean).join(', ');
   const ps = pedsCli(c.id), ult = ps.length ? ps.map(x=>x.data).sort().pop() : null;
-  return `<b>${esc(c.n)}</b><br>${esc(c.e||'sem endereço')}<br>${esc(c.b||'bairro não informado')} · ${esc(c.cid)}<br>${nomeDoc(c.doc)} · cód. ${esc(c.id)}${VR()?`<br><b style="color:${SIT_REAL[sitReal(c)][0]}">${SIT_REAL[sitReal(c)][1]}</b>${ult?`<br>${ps.length} pedido(s) · ${brl(ps.reduce((s,x)=>s+x.total,0))} · última em ${dataBR(ult)}`:''}`:''}${c.vend.length?'<br>Vendedor no Pedidook: '+esc(c.vend.join(', ')):''}${c.ecom?'<br>Já comprou pelo e-commerce':''}
-  <br><small style="color:#777">${E.geoFix?.[c.id]?'Ponto corrigido à mão':E.geoOk?.[c.id]?'Ponto conferido no Street View':(c.fonte==='Google'?'Ponto no número exato, conferido no Google Maps':'Ponto pelo '+(c.prec==='rua'?'nome da rua':'bairro')+' (OpenStreetMap), ainda não conferido')}</small>
+  return `<b>${esc(c.n)}</b><br>${esc(c.e||'sem endereço')}<br>${esc(c.b||'bairro não informado')} · ${esc(c.cid)}${c.uf?'/'+esc(c.uf):''}<br>${nomeDoc(c.doc)}${c.pedidook===undefined&&String(c.id).startsWith('ML-')?' · fora do Pedidook':' · cód. '+esc(c.id)}${c.obs?'<br><small>'+esc(c.obs)+'</small>':''}${VR()?`<br><b style="color:${SIT_REAL[sitReal(c)][0]}">${SIT_REAL[sitReal(c)][1]}</b>${ult?`<br>${ps.length} pedido(s) · ${brl(ps.reduce((s,x)=>s+x.total,0))} · última em ${dataBR(ult)}`:''}`:''}${c.ml?'<br><b>Comprador do Mercado Livre</b>':(c.vend.length?'<br>Vendedor no Pedidook: '+esc(c.vend.join(', ')):'')+(c.ecom?'<br>Já comprou pelo e-commerce':'')}
+  <br><small style="color:#777">${E.geoFix?.[c.id]?'Ponto corrigido à mão':E.geoOk?.[c.id]?'Ponto conferido no Street View':(c.fonte==='Google'?'Ponto no número exato, conferido no Google Maps':'Ponto pel'+({rua:'o nome da rua',cidade:'o centro da cidade'}[c.prec]||'o bairro')+' (OpenStreetMap), ainda não conferido')}</small>
   <button class="btn peq verde" style="margin-top:8px;width:100%;justify-content:center" onclick="fichaReal('${esc(c.id)}')">Histórico de compras</button>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
     <a class="btn peq prim" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}" target="_blank">Street View</a>
@@ -2217,17 +2255,20 @@ function iniciarMapa(){
   _mapa = L.map(el, {scrollWheelZoom:true});
   if (vista) _mapa.setView(vista.c, vista.z); else _mapa.setView([-20.284,-45.539], 14);
   // o servidor do OpenStreetMap bloqueia arquivo aberto do computador (sem site de origem) e a CARTO pede chave: usa o mapa de ruas da Esri
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Mapa © Esri · dados do OpenStreetMap e outros'}).addTo(_mapa);
+  if (L.gridLayer.googleMutant && window.google?.maps) L.gridLayer.googleMutant({type:'roadmap', maxZoom:20}).addTo(_mapa);
+  else L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Mapa © Esri · dados do OpenStreetMap e outros'}).addTo(_mapa);
   _marc = {};
   ptsMapa().forEach(c=>{ const p = posCli(c);
-    _marc[c.id] = L.circleMarker([p.lat,p.lng], {radius:conferido(c)?7:6, color:conferido(c)?'#000':'#fff', weight:conferido(c)?2.5:1.5, fillColor:corCli(c), fillOpacity:.9}).bindPopup(()=>popupCli(c), {minWidth:240}).addTo(_mapa); });
+    _marc[c.id] = L.circleMarker([p.lat,p.lng], {radius:conferido(c)||c.ml?7:6, color:c.ml?'#2D3277':conferido(c)?'#000':'#fff', weight:conferido(c)||c.ml?2.5:1.5, fillColor:corCli(c), fillOpacity:.9}).bindPopup(()=>popupCli(c), {minWidth:240}).addTo(_mapa); });
   if (buscaMapa && !vista){ const p = ptsMapa().map(posCli); if (p.length) _mapa.fitBounds(L.latLngBounds(p.map(x=>[x.lat,x.lng])).pad(.2), {maxZoom:17}); }
 }
 const cliReal = id => CR().find(c=>c.id===id);
 // histórico de compras do cliente real: vem de vendas-reais.js (exportação de pedidos do Pedidook), quando existir
 const VR = () => window.VENDAS_REAIS || null;
 let _vrCli = null, _vrRef = null;
-function pedsCli(id){ if (!VR()) return []; if (!_vrCli || _vrRef!==VR()){ _vrRef = VR(); _vrCli = {}; VR().forEach(p=>{ if (p.tipo!=='Orçamento') (_vrCli[p.cli] = _vrCli[p.cli] || []).push(p); }); } return _vrCli[String(id)] || []; }
+function pedsCli(id){ if (!VR() && !window.VENDAS_ML) return []; if (!_vrCli || _vrRef!==VR()){ _vrRef = VR(); _vrCli = {}; (VR()||[]).forEach(p=>{ if (p.tipo!=='Orçamento') (_vrCli[p.cli] = _vrCli[p.cli] || []).push(p); });
+    // venda do ML que o Pedidook já lançou (mesmo valor, até 15 dias de diferença) não entra duas vezes
+    const usados = new Set(); (window.VENDAS_ML||[]).slice().sort((a,b)=>a.data.localeCompare(b.data)).forEach(v=>{ const ja = (_vrCli[v.cli]||[]).find(p=>!p.ml && !usados.has(p) && Math.abs(p.total-v.total)<.01 && Math.abs(new Date(p.data)-new Date(v.data))<=15*864e5); if (ja) usados.add(ja); else (_vrCli[v.cli] = _vrCli[v.cli] || []).push(v); }); } return _vrCli[String(id)] || []; }
 const SIT_REAL = {ativo:['#22A06B','Comprou nos últimos 30 dias'], emdia:['#8CC79A','Comprou há 31 a 90 dias, no ritmo'], atrasado:['#E0A800','Passou do ritmo de compra'], sumiu:['#C0392B','Sem comprar há mais de 90 dias'], nunca:['#9AA39A','Nunca comprou no Pedidook']};
 function sitReal(c){
   const ps = pedsCli(c.id); if (!ps.length) return 'nunca';
@@ -2248,8 +2289,8 @@ function fichaReal(id){
   const top = Object.values(peds.flatMap(p=>p.itens||[]).reduce((m,i)=>{ const k=i.c||i.n; m[k]=m[k]||{n:i.n||porCod[i.c]?.n||k, q:0, v:0}; m[k].q+=i.q; m[k].v+=i.q*i.p; return m; },{})).sort((a,b)=>b.v-a.v).slice(0,8);
   const meses = [...Array(12)].map((_,i)=>{ const d=new Date(hoje+'T12:00:00'); d.setDate(1); d.setMonth(d.getMonth()-11+i); return iso(d).slice(0,7); });
   const porMes = meses.map(m=>peds.filter(p=>p.data.startsWith(m)).reduce((s,p)=>s+p.total,0)), mx = Math.max(1,...porMes);
-  modal(`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2>${esc(c.n)}</h2><p class="suave">${esc(c.e||'sem endereço')} · ${esc(c.b||'—')} · ${esc(c.cid)}<br>${nomeDoc(c.doc)} · cód. ${esc(c.id)} no Pedidook${c.vend.length?' · vendedor: '+esc(c.vend.join(', ')):''}</p></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">${posCli(c)?`<a class="btn peq" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${posCli(c).lat},${posCli(c).lng}" target="_blank">Street View</a><a class="btn peq" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.e,c.b,c.cid,'MG'].filter(Boolean).join(', '))}" target="_blank">Caminho</a>`:''}</div></div>
+  modal(`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2>${esc(c.n)}</h2><p class="suave">${esc(c.e||'sem endereço')} · ${esc(c.b||'—')} · ${esc(c.cid)}<br>${nomeDoc(c.doc)} · ${String(c.id).startsWith('ML-')?'fora do Pedidook':'cód. '+esc(c.id)+' no Pedidook'}${c.ml?' · comprador do Mercado Livre':c.vend.length?' · vendedor: '+esc(c.vend.join(', ')):''}</p></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">${posCli(c)?`<a class="btn peq" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${posCli(c).lat},${posCli(c).lng}" target="_blank">Street View</a><a class="btn peq" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.e,c.b,c.cid,c.uf||'MG'].filter(Boolean).join(', '))}" target="_blank">Caminho</a>`:''}</div></div>
   ${!vr ? `<div class="aviso" style="margin-top:14px">O histórico de compras aparece aqui quando chegar a <b>exportação de pedidos do Pedidook</b>. A exportação de clientes de 12/10 traz só o cadastro, sem nenhuma compra.</div>
     <div class="grade g4" style="margin-top:10px;gap:10px;opacity:.45">${['Comprou (total)','Pedidos','Ticket médio','Última compra'].map(t=>`<div class="cartao kpi"><div class="rot">${t}</div><div class="val" style="font-size:24px">—</div></div>`).join('')}</div>`
   : !peds.length ? `<div class="aviso" style="margin-top:14px">Nenhuma compra deste cliente na exportação de pedidos.</div>`
@@ -2285,13 +2326,13 @@ function verTudoMapa(){ const p = ptsMapa().map(posCli); if (_mapa && p.length) 
 function zoomBairro(b){ const p = ptsMapa().filter(c=>c.b===b && c.cid==='Arcos').map(posCli); if (_mapa && p.length) _mapa.fitBounds(L.latLngBounds(p.map(x=>[x.lat,x.lng])).pad(.3), {maxZoom:17}); }
 function formTarefa(cli){ return `<label class="r">Cliente</label><select class="campo" id="tf-cli">${E.clientes.filter(c=>c.id!==99).map(c=>`<option value="${c.id}" ${c.id===cli?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
   <label class="r" style="margin-top:10px">O que fazer</label><input class="campo" id="tf-txt" placeholder="Ex.: ligar para fechar o orçamento">
-  <div class="grade g2" style="gap:10px;margin-top:10px"><div><label class="r">Quando</label><input class="campo" type="date" id="tf-data" value="${hoje}"></div><div><label class="r">Quem</label><select class="campo" id="tf-resp">${VEND().map(v=>`<option value="${v.id}">${esc(v.nome)}</option>`).join('')}</select></div></div>
+  <div class="grade g2" style="gap:10px;margin-top:10px"><div><label class="r">Quando</label><input class="campo" type="date" id="tf-data" value="${hoje}"></div><div><label class="r">Quem</label><select class="campo" id="tf-resp">${[{id:'dono',nome:'Márcio'},...VEND()].map(v=>`<option value="${v.id}" ${v.id===meuResp()?'selected':''}>${esc(v.nome)}</option>`).join('')}</select></div></div>
   <button class="btn prim larga" style="margin-top:12px" onclick="addTarefa(${cli||0})">Agendar</button>`; }
 function addTarefa(volta){
   const txt=document.getElementById('tf-txt').value.trim(); if(!txt) return toast('Escreva o que fazer');
   const t={id:Math.max(0,...E.tarefas.map(x=>x.id))+1, cli:+document.getElementById('tf-cli').value, data:document.getElementById('tf-data').value||hoje, txt, resp:document.getElementById('tf-resp').value, feita:null};
   E.tarefas.push(t); reg(`Agendou para ${dataBR(t.data)}: ${txt}`, {cli:t.cli}); salvar(); toast('Tarefa agendada');
-  if (volta) fichaCli(volta); else ir('clientes');
+  if (volta) fichaCli(volta); else { fecharModal(); ir('clientes'); }
 }
 function feita(id){ const t=E.tarefas.find(x=>x.id===id); t.feita=hoje; reg(`Fez: ${t.txt}`, {cli:t.cli}); salvar(); ir('clientes'); toast('Feito. Qual o próximo passo?'); if(['novo','orcamento','negociacao'].includes(cliente(t.cli)?.etapa)) setTimeout(()=>fichaCli(t.cli),300); }
 CRM.relatorio = meus => {
@@ -2321,9 +2362,9 @@ const ultCompra = id => datasCompra(cliente(id)).pop();
 function soltar(ev,k){
   ev.preventDefault(); const c=cliente(ev.dataTransfer.getData('id')); if(!c || c.etapa===k) return ir('clientes');
   if (k==='perdido') return modal(`<h2>Por que perdemos ${esc(c.nome)}?</h2><p class="suave">Escolha o motivo. Ele vai para o relatório.</p>${MOTIVOS_PERDA.map(m=>`<button class="btn larga" style="margin-top:8px" onclick="perder(${c.id},'${m}')">${m}</button>`).join('')}<div class="rodape-m"><button class="btn" onclick="fecharModal();ir('clientes')">Voltar</button></div>`);
-  reg(`${c.nome}: ${ETAPAS[c.etapa]} → ${ETAPAS[k]}`, {cli:c.id}); c.etapa=k; if(k==='ativo') c.ganho=hoje; salvar(); ir('clientes'); toast(c.nome+' → '+ETAPAS[k]);
+  moverEtapa(c, k, null, false); salvar(); ir('clientes'); toast(c.nome+' → '+ETAPAS[k]);
 }
-function perder(id,m){ const c=cliente(id); reg(`${c.nome}: ${ETAPAS[c.etapa]} → Perdido (${m})`, {cli:id}); c.etapa='perdido'; c.perda={motivo:m, data:hoje}; E.tarefas.filter(t=>t.cli===id&&!t.feita).forEach(t=>t.feita=hoje); salvar(); fecharModal(); ir('clientes'); toast('Perda registrada: '+m); }
+function perder(id,m){ const c=cliente(id); reg(`${c.nome}: ${ETAPAS[c.etapa]} → Perdido (${m})`, {cli:id}); c.etapa='perdido'; c.etapaEm=hoje; c.etapaT=new Date().toISOString(); c.auto=null; c.perda={motivo:m, data:hoje}; E.tarefas.filter(t=>t.cli===id&&!t.feita).forEach(t=>t.feita=hoje); salvar(); fecharModal(); ir('clientes'); toast('Perda registrada: '+m); }
 function novoCliente(){ const id=Math.max(0,...E.clientes.filter(c=>c.id!==99).map(c=>c.id))+1; E.clientes.push({id,nome:'Novo cliente',tipo:'B2B',tabela:'atacado',desc:0,cidade:'Arcos',bairro:'',fone:'',etapa:'novo',vend:'v1',conds:['avista'],limite:0,esp:{},obs:'',origem:'',criado:hoje,valor:0}); reg('Cadastrou um cliente novo', {cli:id}); salvar(); fichaCli(id); }
 // cadastro único: avisa quando o nome ou o WhatsApp já existe em outro cliente
 function campoCli(id,k,v){
@@ -2399,7 +2440,7 @@ function fichaCli(id){
 function orcamentoMix(id){
   const c = cliente(id), L = mixSugerido(id).map(([cod])=>porCod[cod]);
   const t = `Olá, ${c.nome}! Aqui é da M7 Distribuidora.\nSeparei alguns produtos que outros clientes do seu ramo estão levando:\n\n` + L.map(p=>`• ${p.n} · ${brl(precoCalc(p,c,1).p)}`).join('\n') + `\n\nQuer que eu inclua no próximo pedido?`;
-  modal(`<h2>Sugestão para ${esc(c.nome)}</h2><pre>${esc(t)}</pre><div class="rodape-m"><button class="btn" onclick="navigator.clipboard?.writeText(${JSON.stringify(t).replace(/"/g,'&quot;')}).then(()=>toast('Texto copiado'))">Copiar</button><button class="btn prim" onclick="fichaCli(${id})">Voltar</button></div>`);
+  modal(`<h2>Sugestão para ${esc(c.nome)}</h2><pre>${esc(t)}</pre><div class="rodape-m"><button class="btn" onclick="navigator.clipboard?.writeText(${JSON.stringify(t).replace(/"/g,'&quot;')}).then(()=>toast('Texto copiado'))">Copiar</button><button class="btn" onclick="marcarOrc(${id})">Mandei para o cliente</button><button class="btn prim" onclick="fichaCli(${id})">Voltar</button></div>`);
 }
 function togCond(id,cid,on){ const c=cliente(id); c.conds = on ? [...new Set([...c.conds,cid])] : c.conds.filter(x=>x!==cid); if(!c.conds.length) c.conds=['avista']; reg(`${c.nome}: ${on?'liberou':'tirou'} a condição ${condNome(cid)}`, {cli:id}); salvar(); }
 function addEsp(id){ const cod=document.getElementById('esp-cod').value.trim(), v=num(document.getElementById('esp-val').value); if(!porCod[cod]) return toast('Código não encontrado'); if(!v) return toast('Digite o preço'); cliente(id).esp[cod]=v; reg(`Preço especial de ${brl(v)} no cód. ${cod}`, {cli:id}); salvar(); fichaCli(id); }
@@ -2663,7 +2704,7 @@ FIN.lucro = () => {
 /* ============================================================ MERCADO LIVRE: anúncio ligado ao estoque, pedido até a etiqueta, perguntas, repasse
    Os anúncios são os reais (anuncios.js). A integração de verdade fala com a API do ML: pedido entra por aviso
    (webhook), estoque sobe sozinho, nota e etiqueta vão e voltam. Aqui os botões simulam essas chamadas. */
-let abaML = 'anuncios', canalMkt = 'ml';
+let abaML = 'painel', canalMkt = 'ml', perML = 30, selEmit = new Set();
 const CANAIS = [['ml','Mercado Livre',1],['shopee','Shopee',0],['tiktok','TikTok Shop',0],['magalu','Magalu',0]];
 function podeAnunciar(i){ const a=AN[i], p=porCod[a?.c], d=estD(p); if(d==null) return 0; return Math.max(0, Math.floor((d - E.regras.mlSeg)/a.fator)); }
 function vendeSemTer(i){ return (E.mlEst[i]||0) > podeAnunciar(i); }
@@ -2688,7 +2729,7 @@ VIEWS.ml = () => {
     <div class="cartao kpi"><div class="rot">Vendas para despachar</div><div class="val ${abertos?'verm':''}">${abertos}</div><div class="sub">sem nota ou sem envio</div></div>
     <div class="cartao kpi"><div class="rot">Sem resposta</div><div class="val ${msgs?'verm':''}">${msgs}</div><div class="sub">perguntas e reclamações</div></div>
   </div>
-  <div class="abas">${[['anuncios','Anúncios e estoque'],['pedidos','Vendas'],['msgs','Perguntas e reclamações'],['repasses','Repasse e margem']].map(([k,n])=>`<button class="btn peq ${abaML===k?'prim':''}" onclick="abaML='${k}';ir('ml')">${n}</button>`).join('')}</div>` + (ML[abaML]||ML.anuncios)();
+  <div class="abas">${[['painel','Painel'],['emitir','Emitir nota e etiqueta'+(paraEmitir().length?` (${paraEmitir().length})`:'')],['anuncios','Anúncios e estoque'],['pedidos','Vendas'],['msgs','Perguntas e reclamações'],['repasses','Repasse e margem']].map(([k,n])=>`<button class="btn peq ${abaML===k?'prim':''}" onclick="abaML='${k}';ir('ml')">${n}</button>`).join('')}</div>` + (ML[abaML]||ML.anuncios)();
 };
 const ML = {};
 ML.anuncios = () => {
@@ -2741,6 +2782,108 @@ function simularVendaML(){
   const furo = vendeSemTer(i) || estD(porCod[a.c])<0;
   salvar(); abaML='pedidos'; ir('ml'); toast(furo?'Venda entrou, mas a loja não tem o kit inteiro. Ver estoque.':'Venda nova do ML: '+a.tit);
 }
+/* ---------- painel do Mercado Livre: o que vendeu, o que sobrou e o que falta fazer ---------- */
+const paraEmitir = () => mlPeds().filter(p=>p.status==='novo' || (p.status==='faturado' && !p.ml.etiqueta));
+function numerosML(de, ate){
+  const L = mlPeds().filter(p=>p.status!=='cancelado' && p.data>=de && p.data<=ate);
+  const T = {n:L.length, v:0, r:0, s:0, semR:0};
+  L.forEach(p=>{ const v=totalPedido(p), r=p.ml.recebe; T.v+=v; if(r!=null){ T.r+=r; T.s+=r-custoPedido(p)-v*E.regras.imposto/100-E.regras.embalagem; } else T.semR++; });
+  return {L, T};
+}
+function barrasDia(dias){
+  const W = 700, H = 170, base = H-22, n = dias.length, bw = W/n, mx = Math.max(1, ...dias.map(d=>d.v));
+  const rot = i => `<text x="${(i+.5)*bw}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--suave)">${dataBR(dias[i].d).slice(0,5)}</text>`;
+  const marcas = [...new Set([0, Math.floor((n-1)/2), n-1])];
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Vendido por dia no Mercado Livre">
+    <line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--linha)"/>
+    <text x="0" y="11" font-size="11" fill="var(--suave)">${brl(mx)}</text><line x1="0" x2="${W}" y1="16" y2="16" stroke="var(--linha)" stroke-dasharray="3 4"/>
+    ${dias.map((d,i)=>{ const h = d.v ? Math.max(3, d.v/mx*(base-18)) : 0, x = i*bw+1, w = Math.max(2, bw-2), y = base-h, r = Math.min(4, w/2, h);
+      return `<g class="barra-dia"><rect x="${i*bw}" y="0" width="${bw}" height="${base}" fill="transparent"/>${h?`<path d="M${x},${base} V${y+r} Q${x},${y} ${x+r},${y} H${x+w-r} Q${x+w},${y} ${x+w},${y+r} V${base} Z" fill="var(--verde-fundo)"/>`:''}<title>${dataBR(d.d)} (${diaSem(d.d)}): ${d.n} venda(s) · ${brl(d.v)}${d.r?` · repasse ${brl(d.r)}`:''}</title></g>`; }).join('')}
+    ${marcas.map(rot).join('')}</svg>`;
+}
+ML.painel = () => {
+  const de = addDias(hoje, -perML+1), {L, T} = numerosML(de, hoje), ant = numerosML(addDias(de, -perML), addDias(de, -1)).T;
+  const dias = [...Array(perML)].map((_,i)=>{ const d = addDias(de, i), q = L.filter(p=>p.data===d); return {d, n:q.length, v:q.reduce((s,p)=>s+totalPedido(p),0), r:q.reduce((s,p)=>s+(p.ml.recebe||0),0)}; });
+  const porAn = Object.values(L.reduce((m,p)=>{ const k=p.ml.an, v=totalPedido(p); m[k] = m[k] || {a:AN[k], n:0, v:0, r:0, s:0}; m[k].n++; m[k].v+=v; if(p.ml.recebe!=null){ m[k].r+=p.ml.recebe; m[k].s+=p.ml.recebe-custoPedido(p)-v*E.regras.imposto/100-E.regras.embalagem; } return m; },{})).sort((a,b)=>b.v-a.v);
+  const noAr = AN.map((a,i)=>({a,i})).filter(x=>x.a.sit==='no ar'), vendeu = new Set(L.map(p=>p.ml.an)), parados = noAr.filter(x=>!vendeu.has(x.i));
+  const reais = L.filter(p=>p.ml.real).length, emitir = paraEmitir(), msgs = E.mlMsgs.filter(m=>!m.resp), recl = msgs.filter(m=>m.tipo==='reclamacao');
+  const sem = noAr.filter(x=>vendeSemTer(x.i));
+  const fazer = [
+    emitir.length && [`${emitir.length} venda(s) para emitir nota e etiqueta`, 'Despachar no prazo segura a reputação.', `abaML='emitir';ir('ml')`, 1],
+    recl.length && [`${recl.length} reclamação(ões) sem resposta`, 'Mexe na reputação. Responda antes do prazo.', `abaML='msgs';ir('ml')`, 1],
+    (msgs.length-recl.length) && [`${msgs.length-recl.length} pergunta(s) sem resposta`, 'Pergunta respondida rápido vende mais.', `abaML='msgs';ir('ml')`, 0],
+    sem.length && [`${sem.length} anúncio(s) mostram estoque que não tem`, 'Se vender, não tem para entregar.', `abaML='anuncios';ir('ml')`, 1]
+  ].filter(Boolean);
+  return `<div class="filtros">Período: ${[[7,'7 dias'],[30,'30 dias'],[90,'90 dias']].map(([n,t])=>`<button class="btn peq ${perML===n?'prim':''}" onclick="perML=${n};ir('ml')">${t}</button>`).join('')}<span class="suave" style="font-size:13px">${dataBR(de)} a ${dataBR(hoje)} · ${reais} venda(s) real(is) e ${L.length-reais} de exemplo</span></div>
+  <div class="grade g4" style="margin-bottom:16px">
+    <div class="cartao kpi escuro"><div class="rot">Vendido</div><div class="val">${brl(T.v)}</div><div class="sub">${T.n} venda(s) · ticket ${brl(T.n?T.v/T.n:0)}</div>${variacao(T.v, ant.v, 'vs. período anterior')}</div>
+    <div class="cartao kpi"><div class="rot">O ML repassa</div><div class="val">${brl(T.r)}</div><div class="sub">tarifa e frete levam ${T.v?pct((T.v-T.r)/T.v):'—'} do vendido${T.semR?` · ${T.semR} sem repasse lido`:''}</div></div>
+    ${veCusto()?`<div class="cartao kpi"><div class="rot">Sobra</div><div class="val ${T.s<0?'verm':''}">${brl(T.s)}</div><div class="sub">repasse − custo − ${E.regras.imposto}% − embalagem · ${T.v?pct(T.s/T.v):'—'} do vendido</div></div>`:`<div class="cartao kpi"><div class="rot">Vendas</div><div class="val">${T.n}</div><div class="sub">no período</div></div>`}
+    <div class="cartao kpi"><div class="rot">Anúncios que venderam</div><div class="val">${vendeu.size} <small style="font-size:15px">de ${noAr.length}</small></div><div class="sub">${parados.length} no ar sem venda no período</div></div>
+  </div>
+  <div class="grade g32" style="align-items:start">
+    <div class="cartao"><h2>Vendido por dia</h2>${T.n?barrasDia(dias):'<p class="suave">Nenhuma venda no período.</p>'}<p class="suave" style="font-size:12px;margin-top:6px">Passe o mouse na barra para ver o dia. Conta as vendas que estão no sistema: as reais lidas na conta e as de exemplo.</p></div>
+    <div class="cartao"><h2>Para fazer agora</h2>${fazer.map(([t,s,go,al])=>`<div class="acao" style="cursor:pointer" onclick="${go}"><span><b class="${al?'verm':''}">${t}</b><br><small class="suave">${s}</small></span><span class="btn peq">Abrir</span></div>`).join('') || '<p class="suave">Nada pendente no Mercado Livre.</p>'}</div>
+  </div>
+  <div class="cartao tabela" style="margin-top:16px"><h2>Por anúncio</h2><table><tr><th>Anúncio</th><th class="num">Vendas</th><th class="num">Vendido</th><th style="width:22%"></th><th class="num">Repasse</th>${veCusto()?'<th class="num">Sobra</th><th class="num">Sobra por venda</th>':''}</tr>
+    ${porAn.map(x=>`<tr><td>${esc(x.a?.tit)}<br><small class="suave">cód. ${x.a?.c} · ${esc(x.a?.plano||'')}</small></td><td class="num">${x.n}</td><td class="num"><b>${brl(x.v)}</b></td><td><div class="barra"><i style="width:${x.v/(porAn[0].v||1)*100}%"></i></div></td><td class="num">${brl(x.r)}</td>${veCusto()?`<td class="num ${x.s<0?'verm':'pos'}">${brl(x.s)}</td><td class="num">${brl(x.s/x.n)}</td>`:''}</tr>`).join('') || '<tr><td colspan="7" class="suave">Nenhuma venda no período.</td></tr>'}
+  </table>
+  ${parados.length?`<p class="suave" style="font-size:13px;margin-top:10px"><b>No ar sem venda no período:</b> ${parados.map(x=>esc(x.a.tit)).join(' · ')}</p>`:''}</div>`;
+};
+
+/* ---------- emitir: nota fiscal e etiqueta saem do próprio sistema, sem abrir o ML nem o Eficaz ---------- */
+function emitirML(ids){
+  ids = (ids || [...selEmit]).filter(id=>paraEmitir().some(p=>p.id===id));
+  if (!ids.length) return toast('Marque as vendas');
+  let nf = 0, et = 0; const trav = [];
+  ids.forEach(id=>{ const p = E.pedidos.find(x=>x.id===id);
+    if (!p.nf){ if (!faturar(id, true)){ trav.push(p); return; } nf++; }
+    if (!p.ml.etiqueta){ p.ml.etiqueta = {data:hoje, vez:1}; et++; reg(`Gerou a etiqueta da venda #${id} no ML`, {ped:id}); }   // só pede etiqueta a venda que ainda não tem
+  });
+  selEmit.clear(); salvar(); ir('ml');
+  if (trav.length) modal(`<h2>${trav.length} venda(s) travada(s)</h2><p>Falta dado fiscal no cadastro. A SEFAZ recusa a nota sem ele.</p>${trav.map(p=>`<div class="forma"><span>#${p.id} · ${esc(AN[p.ml.an]?.tit)}</span><span class="tag alerta">${faltaFiscal(p).map(x=>'cód. '+x.c+': falta '+prontidao(x).join(' e ')).join(' · ')}</span></div>`).join('')}<div class="rodape-m"><button class="btn prim" onclick="fecharModal()">Entendi</button></div>`);
+  toast(`${nf} nota(s) autorizada(s) e ${et} etiqueta(s) mandada(s) para a impressora`);
+}
+function marcaEmit(id, on){ on ? selEmit.add(id) : selEmit.delete(id); ir('ml'); }
+function marcaTodasEmit(){ const L = paraEmitir(); if (selEmit.size===L.length) selEmit.clear(); else L.forEach(p=>selEmit.add(p.id)); ir('ml'); }
+ML.emitir = () => {
+  const L = paraEmitir().sort((a,b)=>a.id-b.id), feitas = mlPeds().filter(p=>p.nf).sort((a,b)=>b.id-a.id).slice(0,15);
+  return `<div class="aviso verde">A nota e a etiqueta saem daqui, sem abrir o Mercado Livre nem o Eficaz: a nota vai para a SEFAZ pela API fiscal, o XML sobe para o ML e a etiqueta volta para a impressora térmica. Neste protótipo é simulado, em homologação.</div>
+  <div class="cartao tabela"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Para emitir</h2>
+    <span style="display:flex;gap:6px;flex-wrap:wrap">${L.length?`<button class="btn peq" onclick="marcaTodasEmit()">${selEmit.size===L.length?'Desmarcar todas':'Marcar todas'}</button><button class="btn prim" onclick="emitirML()">Emitir nota e etiqueta das marcadas (${selEmit.size})</button>`:''}</span></div>
+  <table><tr><th></th><th>Venda</th><th>Anúncio</th><th>Falta</th><th class="num">Valor</th><th></th></tr>
+  ${L.map(p=>{ const a=AN[p.ml.an], tr=faltaFiscal(p); return `<tr><td><input type="checkbox" ${selEmit.has(p.id)?'checked':''} onchange="marcaEmit(${p.id},this.checked)"></td>
+    <td><b class="clica" style="cursor:pointer" onclick="verPedido(${p.id})">#${p.id}</b><br><small class="suave">${dataBR(p.data)} · ${esc(p.ml.comprador)}</small></td><td>${esc(a?.tit)}<br><small class="suave">baixa ${n0(a?.fator)} do cód. ${a?.c}</small></td>
+    <td>${p.nf?'<span class="tag ok">nota feita</span> <span class="tag esp">falta etiqueta</span>':'<span class="tag esp">falta nota</span> <span class="tag esp">falta etiqueta</span>'}${tr.length?`<br><span class="tag alerta" style="margin-top:4px">trava: falta ${[...new Set(tr.flatMap(prontidao))].join(' e ')}</span>`:''}</td>
+    <td class="num">${brl(totalPedido(p))}</td><td><button class="btn peq prim" onclick="emitirML([${p.id}])">Emitir</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="suave">Nenhuma venda esperando nota ou etiqueta.</td></tr>'}
+  </table></div>
+  <div class="cartao tabela" style="margin-top:16px"><h2>Emitidas</h2><table><tr><th>Nota</th><th>Venda</th><th>Etiqueta</th><th></th></tr>
+  ${feitas.map(p=>`<tr><td><b>NF-e ${p.nf.n}</b><br><small class="suave">${dataBR(p.nf.data)} · ${p.nf.mlEnviada?'XML enviado ao ML':'XML guardado'}</small></td><td>#${p.id} · ${esc(AN[p.ml.an]?.tit)}</td>
+    <td>${p.ml.etiqueta?`<span class="tag ok">gerada ${dataBR(p.ml.etiqueta.data)}</span>${p.ml.etiqueta.vez>1?`<br><small class="suave">reimpressa ${p.ml.etiqueta.vez-1}x</small>`:''}`:'<span class="tag esp">falta</span>'}</td>
+    <td style="white-space:nowrap"><button class="btn peq" onclick="danfe(${p.id})">DANFE</button> <button class="btn peq" onclick="baixarXML(${p.id})">XML</button>${p.ml.etiqueta?` <button class="btn peq" onclick="etiquetaML(${p.id})">Reimprimir etiqueta</button>`:''}</td></tr>`).join('') || '<tr><td colspan="4" class="suave">Nenhuma nota emitida pelo sistema ainda.</td></tr>'}
+  </table><p class="suave" style="font-size:12px;margin-top:8px">A etiqueta só é pedida ao ML uma vez por venda. Reimprimir usa o mesmo arquivo guardado e nunca pede outra, para não gerar documento novo. As duas vendas reais da Thega foram despachadas pelo ML antes do sistema e não têm nota aqui.</p></div>`;
+};
+function danfe(id){
+  const p = E.pedidos.find(x=>x.id===id); if(!p?.nf) return;
+  const dest = p.ml ? p.ml.comprador : cliente(p.cli)?.nome, tot = totalPedido(p);
+  modal(`<div style="border:2px solid var(--tinta);padding:14px;font-size:12px;position:relative">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:34px;font-weight:800;color:rgba(155,28,28,.13);transform:rotate(-18deg)">EXEMPLO · SEM VALOR FISCAL</div>
+    <div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--tinta);padding-bottom:8px"><div><b style="font-size:15px">M7 DISTRIBUIDORA</b><br>Arcos/MG · CNPJ da M7 [a preencher]<br>Simples Nacional · CSOSN 102</div><div style="text-align:right"><b style="font-size:15px">DANFE</b><br>NF-e nº ${p.nf.n} · série 1<br>Emissão ${dataBR(p.nf.data)}<br>1 - Saída</div></div>
+    <div style="padding:8px 0;border-bottom:1px solid var(--tinta)"><b>Chave de acesso</b><br><span style="font-family:monospace;letter-spacing:.5px">${p.nf.chave.replace(/(\d{4})/g,'$1 ')}</span><br>Autorizada em homologação (exemplo)</div>
+    <div style="padding:8px 0;border-bottom:1px solid var(--tinta)"><b>Destinatário</b><br>${esc(dest)}${p.ml?' · venda Mercado Livre #'+p.id:' · pedido #'+p.id}</div>
+    <table style="margin-top:8px;font-size:12px"><tr><th>Cód.</th><th>Descrição</th><th>NCM</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr>
+    ${p.itens.map(i=>`<tr><td>${i.c}</td><td>${esc(porCod[i.c]?.n)}</td><td>${porCod[i.c]?.ncm||'—'}</td><td class="num">${n0(i.q)}</td><td class="num">${brl(i.p)}</td><td class="num">${brl(i.p*i.q)}</td></tr>`).join('')}</table>
+    <div class="total grande"><span>Valor total da nota</span><span>${brl(tot)}</span></div>
+    <p class="suave" style="font-size:11px">CFOP conforme a UF do destinatário. O DANFE de verdade sai da API fiscal, com código de barras e QR.</p></div>
+    <div class="rodape-m"><button class="btn" onclick="fecharModal()">Fechar</button><button class="btn" onclick="baixarXML(${id})">Baixar XML</button><button class="btn prim" onclick="window.print()">Imprimir</button></div>`, true);
+}
+function baixarXML(id){
+  const p = E.pedidos.find(x=>x.id===id); if(!p?.nf) return;
+  const linhas = p.itens.map((i,k)=>`<det nItem="${k+1}"><prod><cProd>${i.c}</cProd><xProd>${esc(porCod[i.c]?.n)}</xProd><NCM>${porCod[i.c]?.ncm||''}</NCM><qCom>${i.q}</qCom><vUnCom>${i.p.toFixed(2)}</vUnCom><vProd>${(i.p*i.q).toFixed(2)}</vProd></prod><imposto><ICMS><ICMSSN102><CSOSN>102</CSOSN></ICMSSN102></ICMS></imposto></det>`).join('\n');
+  const xml = '<' + `?xml version="1.0" encoding="UTF-8"?>\n<!-- EXEMPLO do protótipo da M7, ambiente de homologação, sem valor fiscal -->\n<nfeProc><NFe><infNFe Id="NFe${p.nf.chave}"><ide><nNF>${p.nf.n}</nNF><serie>1</serie><dhEmi>${p.nf.data}</dhEmi><tpAmb>2</tpAmb></ide>\n<emit><xNome>M7 DISTRIBUIDORA</xNome><CRT>1</CRT></emit>\n<dest><xNome>${esc(p.ml?p.ml.comprador:cliente(p.cli)?.nome)}</xNome></dest>\n${linhas}\n<total><ICMSTot><vNF>${totalPedido(p).toFixed(2)}</vNF></ICMSTot></total></infNFe></NFe></nfeProc>\n`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([xml], {type:'application/xml'})); a.download = `NFe-${p.nf.n}-pedido-${p.id}.xml`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  reg(`Baixou o XML da NF-e ${p.nf.n}`, {ped:id});
+}
 let respML = {};
 ML.msgs = () => {
   const L = E.mlMsgs.slice().sort((a,b)=>(!!a.resp)-(!!b.resp) || (a.tipo==='reclamacao'?-1:1));
@@ -2763,6 +2906,299 @@ ML.repasses = () => {
   ${linhas.join('')}
   <tr><td colspan="2"><b>Total</b></td><td class="num"><b>${brl(T.v)}</b></td><td class="num"><b>${brl(T.r)}</b></td><td class="num"><b>${brl(T.v-T.r)}</b></td>${veCusto()?`<td class="num"><b>${brl(T.c)}</b></td><td></td><td class="num"><b>${brl(T.s)}</b></td>`:''}<td></td></tr></table>
   <p class="suave" style="font-size:12px;margin-top:8px">O repasse das vendas reais da Thega é o da tela do ML (R$ 84,37: tarifa R$ 21,28 e frete R$ 23,35). Nas de exemplo, sai da sobra lida na tela em 29/09. A sobra usa o custo do Pedidook de 07/10, o Simples de ${E.regras.imposto}% e R$ ${n0(E.regras.embalagem)} de embalagem. O repasse aparece no extrato quando o Mercado Pago libera, e a conciliação liga um ao outro.</p></div>`;
+};
+
+/* ============================================================ v0.8 · funil automático, agenda única, equipe e compromisso pela conversa
+   - o funil anda sozinho pelo que acontece: conversa nova, orçamento, resposta, pedido, tempo sem comprar
+   - agenda e tarefas viraram uma lista só, com a diferença escrita: compromisso tem hora, tarefa não
+   - o Márcio vê a agenda dele e, à parte, a da equipe, com quem cumpriu o combinado
+   - dia e hora combinados no WhatsApp entram sozinhos na agenda; o robô também marca visita */
+const autoOn = id => !!E.automacoes?.find(a=>a.id===id)?.on;
+const pessoaTarefa = r => r==='dono' ? 'Márcio' : r==='loja' ? 'Balcão' : vendedor(r)?.nome || r;
+const meuResp = () => ({dono:'dono', v1:'v1', v2:'v2', balcao:'loja'})[E.usuario] || E.usuario;
+const donoComp = k => k.resp || (k.envolvidos.includes('Márcio') ? 'Márcio' : k.envolvidos.find(n=>pessoasEquipe().includes(n)) || '—');
+const ehMeuComp = k => donoComp(k)===nomeAtual() || k.envolvidos.includes(nomeAtual());
+const ehMinhaTarefa = t => pessoaTarefa(t.resp)===nomeAtual();
+const checkinComp = k => k.tipo==='Visita' && E.visitas.some(v=>v.cli===k.cli && v.data===k.data);
+const somaMin = (hm, m) => { const t = +hm.slice(0,2)*60 + +hm.slice(3,5) + m; return String(Math.floor(t/60)%24).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); };
+const rotDia = d => `${d===hoje?'Hoje':d===addDias(hoje,1)?'Amanhã':dataBR(d)} <small class="suave" style="text-transform:none">${diaSem(d)}</small>`;
+// cumpriu? resultado no dia = cumprido; resultado depois = com atraso; passou do dia sem resultado = sem resultado
+function stComp(k){
+  if (k.resultado) return k.resData && k.resData>k.data ? ['tarde','resultado com atraso'] : ['ok','cumprido'];
+  if (k.data<hoje) return ['atras','sem resultado'];
+  return ['agenda','agendado'];
+}
+function compLinha(k, comQuem, comData){
+  const c = cliente(k.cli), st = stComp(k);
+  return `<div class="comp" onclick="verComp(${k.id})"><span class="hr">${comData?dataBR(k.data).slice(0,5)+'<br><small class="suave">'+k.ini+'</small>':k.ini+'<br><small class="suave">até '+k.fim+'</small>'}</span><span style="flex:1;min-width:0"><span class="tp">${esc(k.tipo)}${k.auto?' · marcado sozinho':''}</span><br><b>${esc(k.titulo)}</b><br><small class="suave">${esc(c?.nome||'—')}${comQuem?' · <b>'+esc(donoComp(k))+'</b>':''} · ${k.envolvidos.length} envolvido(s)${st[0]!=='agenda'?` · <span class="${st[0]==='ok'?'pos':st[0]==='atras'?'verm':'pend'}">${st[1]}</span>`:''}${checkinComp(k)?' · esteve no local':''}${k.remarcado?` · remarcado ${k.remarcado}x`:''}${k.cobrado?' · cobrado '+dataBR(k.cobrado).slice(0,5):''}</small></span></div>`;
+}
+function tarefaHTML(t, comQuem){
+  return `<div class="comp tarefa"><span class="hr"><input type="checkbox" title="Marcar como feita" onclick="event.stopPropagation();feita(${t.id})"></span><span style="flex:1;min-width:0"><span class="tp">Tarefa${t.data<hoje?` · <span class="verm">desde ${dataBR(t.data).slice(0,5)}</span>`:''}</span><br><b>${esc(t.txt)}</b><br><small class="suave"><a href="#" style="color:inherit" onclick="fichaCli(${t.cli});return false">${esc(cliente(t.cli)?.nome||'—')}</a>${comQuem?' · <b>'+esc(pessoaTarefa(t.resp))+'</b>':''}${t.auto?' · <span class="pos">aberta sozinha</span>':''}${t.cobrado?' · cobrado '+dataBR(t.cobrado).slice(0,5):''}</small></span></div>`;
+}
+function novaTarefa(cli){ modal(`<h2>Nova tarefa</h2><p class="suave" style="font-size:13px;margin-bottom:8px">Tarefa é o que precisa ser feito no dia, sem hora marcada. Se tem hora e alguém do outro lado, é compromisso.</p>${formTarefa(cli)}`); }
+const autoChaves = ids => ids.map(id=>E.automacoes.find(a=>a.id===id)).filter(Boolean).map(a=>`<div class="forma"><span><b>${esc(a.nome)}</b><br><small class="suave">${esc(a.acao)}</small></span><label class="chk"><input type="checkbox" ${a.on?'checked':''} onchange="togAuto('${a.id}',this.checked)"> ${a.on?'ligada':'desligada'}</label></div>`).join('');
+
+/* ---------- agenda: compromissos e tarefas numa lista só ---------- */
+let agVista = 'minha', agPessoa = '';
+const atrasEquipe = () => ({c:(E.compromissos||[]).filter(k=>donoComp(k)!=='Márcio' && k.data<hoje && !k.resultado), t:E.tarefas.filter(t=>pessoaTarefa(t.resp)!=='Márcio' && !t.feita && t.data<hoje)});
+CRM.agenda = meus => {
+  const ids = new Set(meus.map(c=>c.id)), equipe = aprova() && agVista==='equipe', ae = atrasEquipe(), nAe = ae.c.length + ae.t.length;
+  const cab = `<div class="filtros">${aprova()?`<button class="btn peq ${!equipe?'prim':''}" onclick="agVista='minha';ir('clientes')">Minha agenda</button><button class="btn peq ${equipe?'prim':''}" onclick="agVista='equipe';ir('clientes')">Equipe${nAe?` <span class="tag alerta" style="margin-left:4px">${nAe} pendente(s)</span>`:''}</button>`:''}<span style="flex:1"></span><button class="btn peq prim" onclick="novoComp()">+ Compromisso</button><button class="btn peq" onclick="novaTarefa()">+ Tarefa</button></div>
+  <p class="suave" style="font-size:13px;margin:-4px 0 12px"><b>Compromisso</b> tem hora marcada e alguém do outro lado: visita, ligação, reunião. <b>Tarefa</b> é o que precisa ser feito no dia, sem hora. Os dois ficam na mesma lista, por dia.</p>`;
+  if (equipe) return cab + equipeAgendaHTML();
+  const C = (E.compromissos||[]).filter(k=>ids.has(k.cli) && ehMeuComp(k)), T = E.tarefas.filter(t=>ids.has(t.cli) && ehMinhaTarefa(t));
+  const atrasC = C.filter(k=>k.data<hoje && !k.resultado).sort((a,b)=>a.data.localeCompare(b.data)), atrasT = T.filter(t=>!t.feita && t.data<hoje);
+  const dias = [...Array(21)].map((_,i)=>addDias(hoje,i));
+  const blocoDia = d => { const q = C.filter(k=>k.data===d).sort((a,b)=>a.ini.localeCompare(b.ini)), t = T.filter(x=>!x.feita && x.data===d); return q.length||t.length ? `<h3 style="margin:14px 0 2px">${rotDia(d)}</h3>${q.map(k=>compLinha(k)).join('')}${t.map(x=>tarefaHTML(x)).join('')}` : ''; };
+  const depois = T.filter(t=>!t.feita && t.data>dias[20]);
+  const feitos = [...C.filter(k=>k.resultado).map(k=>[k.resData||k.data, compLinha(k,false,true)]), ...T.filter(t=>t.feita).map(t=>[t.feita, `<div class="forma"><span class="suave">${dataBR(t.feita)} · ${esc(cliente(t.cli)?.nome)} · ${esc(t.txt)}</span><span class="tag ok">feita</span></div>`])].sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6).map(x=>x[1]).join('');
+  return cab + `<div class="grade g32" style="align-items:start"><div class="cartao"><h2>${aprova()?'Minha agenda':'Agenda'}</h2>
+    ${atrasC.length||atrasT.length?`<h3 class="verm" style="margin:14px 0 2px">Atrasado</h3>${atrasC.map(k=>compLinha(k,false,true)).join('')}${atrasT.map(x=>tarefaHTML(x)).join('')}`:''}
+    ${dias.map(blocoDia).join('') || '<p class="suave" style="margin-top:12px">Nada nas próximas 3 semanas.</p>'}
+    ${depois.length?`<h3 style="margin:14px 0 2px">Mais para frente</h3>${depois.map(x=>tarefaHTML(x)).join('')}`:''}</div>
+    <div>${anivHTML()}<div class="cartao" style="margin-top:16px"><h2>Feito</h2>${feitos||'<p class="suave">Nada ainda.</p>'}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Entra sozinho na agenda</h2>${autoChaves(['comp-conv','comp-orc','recompra','parada','vencido'])}<p class="suave" style="font-size:12px;margin-top:8px">O robô do WhatsApp também marca visita quando o cliente escolhe "Receber a visita do vendedor".</p></div></div></div>`;
+};
+CRM.tarefas = CRM.agenda;
+
+/* ---------- equipe: o Márcio vê se cada um cumpre o combinado ---------- */
+function numerosPessoa(n, de){
+  const c = (E.compromissos||[]).filter(k=>donoComp(k)===n && k.data>=de && k.data<hoje), t = E.tarefas.filter(x=>pessoaTarefa(x.resp)===n && x.data>=de && x.data<hoje);
+  const ok = c.filter(k=>stComp(k)[0]==='ok').length, tarde = c.filter(k=>stComp(k)[0]==='tarde').length, semR = c.filter(k=>!k.resultado).length;
+  const vis = c.filter(k=>k.tipo==='Visita'), tOk = t.filter(x=>x.feita && x.feita<=x.data).length;
+  return {n, c:c.length, ok, tarde, semR, vis:vis.length, chk:vis.filter(checkinComp).length, rem:c.reduce((s,k)=>s+(k.remarcado||0),0), t:t.length, tOk, cumpre:(c.length+t.length) ? (ok+tOk)/(c.length+t.length) : null};
+}
+function equipeAgendaHTML(){
+  const de = addDias(hoje,-30), ate = addDias(hoje,7);
+  const pessoas = pessoasEquipe().filter(n=>n!=='Márcio' && ((E.compromissos||[]).some(k=>donoComp(k)===n) || E.tarefas.some(t=>pessoaTarefa(t.resp)===n)));
+  const L = pessoas.map(n=>numerosPessoa(n, de)), ae = atrasEquipe();
+  const daPessoa = n => !agPessoa || n===agPessoa;
+  const pend = [...ae.c.filter(k=>daPessoa(donoComp(k))).map(k=>[k.data, compLinha(k,true,true)+`<div style="text-align:right;margin:-6px 0 8px"><button class="btn peq" onclick="cobrar('c',${k.id})">Cobrar no chat da equipe</button></div>`]),
+                ...ae.t.filter(t=>daPessoa(pessoaTarefa(t.resp))).map(t=>[t.data, tarefaHTML(t,true)+`<div style="text-align:right;margin:-6px 0 8px"><button class="btn peq" onclick="cobrar('t',${t.id})">Cobrar no chat da equipe</button></div>`])].sort((a,b)=>a[0].localeCompare(b[0])).map(x=>x[1]).join('');
+  const prox = [...Array(8)].map((_,i)=>addDias(hoje,i)).map(d=>{ const q = (E.compromissos||[]).filter(k=>k.data===d && donoComp(k)!=='Márcio' && daPessoa(donoComp(k))).sort((a,b)=>a.ini.localeCompare(b.ini)), t = E.tarefas.filter(x=>!x.feita && x.data===d && pessoaTarefa(x.resp)!=='Márcio' && daPessoa(pessoaTarefa(x.resp))); return q.length||t.length ? `<h3 style="margin:14px 0 2px">${rotDia(d)}</h3>${q.map(k=>compLinha(k,true)).join('')}${t.map(x=>tarefaHTML(x,true)).join('')}` : ''; }).join('');
+  const cor = v => v==null ? '' : v>=.8 ? 'ok' : v>=.5 ? 'esp' : 'alerta';
+  return `<div class="cartao tabela"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Quem cumpriu o combinado <small class="suave" style="font-size:13px;font-weight:500">últimos 30 dias, até ontem</small></h2>
+    <select class="campo" style="max-width:220px" onchange="agPessoa=this.value;ir('clientes')"><option value="">Toda a equipe</option>${pessoas.map(n=>`<option ${n===agPessoa?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+    <table><tr><th>Pessoa</th><th class="num">Compromissos</th><th class="num">Cumpridos no dia</th><th class="num">Resultado atrasado</th><th class="num">Sem resultado</th><th class="num">Visitas com check-in</th><th class="num">Remarcados</th><th class="num">Tarefas no prazo</th><th class="num">Cumprimento</th></tr>
+    ${L.map(x=>`<tr class="clica" style="cursor:pointer${agPessoa===x.n?';background:var(--verde-veu)':''}" onclick="agPessoa=agPessoa==='${esc(x.n)}'?'':'${esc(x.n)}';ir('clientes')"><td style="white-space:nowrap"><b>${esc(x.n)}</b></td><td class="num">${x.c}</td><td class="num">${x.ok}</td><td class="num ${x.tarde?'pend':''}">${x.tarde}</td><td class="num ${x.semR?'verm':''}"><b>${x.semR}</b></td><td class="num">${x.vis?x.chk+' de '+x.vis:'—'}</td><td class="num">${x.rem||'—'}</td><td class="num">${x.t?x.tOk+' de '+x.t:'—'}</td><td class="num">${x.cumpre==null?'—':`<span class="tag ${cor(x.cumpre)}">${pct(x.cumpre)}</span>`}</td></tr>`).join('') || '<tr><td colspan="9" class="suave">Nenhum compromisso da equipe ainda.</td></tr>'}
+    </table><p class="suave" style="font-size:12px;margin-top:8px">Cumprido no dia: o resultado foi escrito no dia do compromisso. Check-in: o vendedor marcou a visita no app, com a localização, no dia combinado. Cumprimento = compromissos cumpridos no dia + tarefas feitas no prazo, sobre o total. Clique na linha para ver só a pessoa. Os compromissos do Márcio ficam na agenda dele e não entram aqui.</p></div>
+  <div class="grade g2" style="margin-top:16px;align-items:start">
+    <div class="cartao"><h2>Passou e não foi feito</h2>${pend || '<p class="suave">Ninguém devendo nada.</p>'}</div>
+    <div class="cartao"><h2>Próximos 7 dias da equipe</h2>${prox || '<p class="suave">Nada marcado.</p>'}</div></div>`;
+}
+function cobrar(tipo, id){
+  const x = tipo==='c' ? E.compromissos.find(k=>k.id===id) : E.tarefas.find(t=>t.id===id), quem = tipo==='c' ? donoComp(x) : pessoaTarefa(x.resp);
+  const txt = tipo==='c' ? `@${quem} falta o resultado de "${x.titulo}" (${cliente(x.cli)?.nome}, ${dataBR(x.data)} às ${x.ini}). Como foi?` : `@${quem} a tarefa "${x.txt}" (${cliente(x.cli)?.nome}) era para ${dataBR(x.data)}. Consegue fazer hoje?`;
+  E.equipe.push({de:nomeAtual(), t:new Date().toISOString(), txt}); x.cobrado = hoje;
+  reg(`Cobrou ${quem}: ${tipo==='c'?x.titulo:x.txt}`, {cli:x.cli}); salvar(); ir('clientes'); toast(`Cobrança no chat da equipe. ${quem} vê no sininho.`);
+}
+
+/* ---------- criar compromisso sozinho, no primeiro horário livre da pessoa ---------- */
+function horarioLivre(quem, aPartir, dur, hIni){
+  for (let i=0; i<14; i++){ const d = addDias(aPartir, i); if (new Date(d+'T12:00:00').getDay()===0) continue;
+    for (let h = hIni||8; h<=17; h++){ const ini = String(h).padStart(2,'0')+':00', fim = somaMin(ini, dur);
+      if (d===hoje && ini<=hora()) continue;
+      if (!(E.compromissos||[]).some(k=>k.data===d && (donoComp(k)===quem || k.envolvidos.includes(quem)) && k.ini<fim && k.fim>ini)) return {data:d, ini, fim}; } }
+  return {data:aPartir, ini:'09:00', fim:somaMin('09:00', dur)};
+}
+function criarComp(d){
+  const k = {id:Math.max(0,...E.compromissos.map(x=>x.id))+1, resultado:'', ed:{quem:'Sistema (automático)', t:new Date().toISOString()}, ...d};
+  E.compromissos.push(k); reg(`Agenda automática · ${d.tipo} com ${cliente(d.cli)?.nome} em ${dataBR(d.data)} às ${d.ini} (${d.resp})`, {cli:d.cli});
+  return k;
+}
+function retornoOrcamento(c){
+  if ((E.compromissos||[]).some(k=>k.cli===c.id && k.auto==='orc' && !k.resultado)) return;
+  const quem = pessoaTarefa(c.vend), s = horarioLivre(quem, addDias(hoje, E.regras.diasRetorno||2), 15, 10);
+  criarComp({cli:c.id, tipo:'Ligação', titulo:'Retorno do orçamento', data:s.data, ini:s.ini, fim:s.fim, envolvidos:[quem], objetivo:'Saber se o cliente viu o orçamento e fechar o pedido.', resp:quem, auto:'orc'});
+}
+
+/* ---------- funil automático ---------- */
+function moverEtapa(c, k, motivo, auto){
+  if (!c || c.etapa===k) return;
+  reg(`${auto?'Funil automático · ':''}${c.nome}: ${ETAPAS[c.etapa]} → ${ETAPAS[k]}${motivo?' ('+motivo+')':''}`, {cli:c.id});
+  c.etapa = k; c.etapaEm = hoje; c.etapaT = new Date().toISOString(); c.auto = auto ? {motivo, data:hoje} : null;
+  if (k==='ativo') c.ganho = hoje;
+  if (k==='perdido'){ c.perda = {motivo:motivo||'Outro', data:hoje}; E.tarefas.filter(t=>t.cli===c.id && !t.feita).forEach(t=>t.feita=hoje); }
+  if (k==='orcamento' && autoOn('comp-orc')) retornoOrcamento(c);
+}
+function funilAuto(){
+  if (!E.automacoes) return 0;
+  let n = 0; const mv = (c,k,m) => { moverEtapa(c,k,m,true); n++; };
+  // contato que não está no cadastro manda mensagem: vira cliente em Novo contato
+  if (autoOn('f-novo')) E.conversas.filter(cv=>!cv.cli && cv.status!=='resolvida').forEach(cv=>{
+    const id = Math.max(0,...E.clientes.filter(c=>c.id!==99).map(c=>c.id))+1;
+    E.clientes.push({id, nome:cv.nome, tipo:'B2B', tabela:'atacado', desc:0, cidade:'Arcos', bairro:'', fone:cv.fone, etapa:'novo', vend:'v1', conds:['avista'], limite:0, esp:{}, obs:'Entrou sozinho pelo WhatsApp. Conferir nome, cidade e vendedor.', origem:'WhatsApp', criado:hoje, valor:0, tags:['Cliente novo'], contatos:[], nicho:'', etapaEm:hoje, etapaT:new Date().toISOString(), auto:{motivo:'mandou mensagem no WhatsApp', data:hoje}});
+    cv.cli = id; reg(`Funil automático · ${cv.nome} entrou em Novo contato (mandou mensagem no WhatsApp)`, {cli:id}); n++; });
+  E.clientes.filter(c=>c.id!==99).forEach(c=>{
+    const desde = c.etapaEm || c.criado || '0000';
+    const ult = E.pedidos.filter(p=>p.cli===c.id && !NAO_VENDA.includes(p.status)).map(p=>p.data).sort().pop();
+    if (autoOn('f-pedido') && c.etapa!=='ativo' && ult && ult>=desde) return mv(c, 'ativo', 'fez pedido em '+dataBR(ult));
+    const conv = E.conversas.filter(cv=>cv.cli===c.id);
+    if (autoOn('f-orc') && c.etapa==='novo' && (conv.some(cv=>cv.tags.includes('orçamento')) || (c.orcEnviado && c.orcEnviado.slice(0,10)>=desde))) return mv(c, 'orcamento', 'orçamento enviado');
+    if (c.etapa==='orcamento' && c.etapaT){
+      const respondeu = conv.some(cv=>cv.msgs.some(m=>m.de==='cli' && m.t>c.etapaT));
+      if (autoOn('f-resp') && respondeu) return mv(c, 'negociacao', 'respondeu o orçamento');
+      if (autoOn('f-perde') && !respondeu && (new Date(hoje)-new Date(c.etapaEm))/864e5 > (E.regras.diasPerde||15)) return mv(c, 'perdido', 'Sem resposta');
+    }
+    if (autoOn('f-parou') && c.etapa==='ativo' && c.tipo==='B2B'){ const u = ultCompra(c.id), d = u ? Math.round((new Date(hoje)-new Date(u))/864e5) : 0; if (d > (E.regras.diasParou||45)) return mv(c, 'inativo', d+' dias sem comprar'); }
+  });
+  if (n) salvar();
+  return n;
+}
+function regrasFunil(){ modal(`<h2>Funil automático</h2>${autoChaves(['f-novo','f-orc','f-resp','f-pedido','f-parou','f-perde'])}<p class="suave" style="font-size:12px;margin-top:8px">Os dias de cada regra mudam em Regras e acessos.</p><div class="rodape-m"><button class="btn prim" onclick="fecharModal();ir(tela)">Fechar</button></div>`); }
+function marcarOrc(id){ const c = cliente(id); c.orcEnviado = new Date().toISOString(); reg(`${c.nome}: orçamento enviado`, {cli:id}); salvar(); fecharModal(); ir(tela); toast(autoOn('f-orc') && c.etapa==='novo' ? 'Orçamento registrado. O cliente passou para Orçamento enviado.' : 'Orçamento registrado'); }
+
+/* ---------- compromisso combinado na conversa: dia e hora entram sozinhos na agenda ---------- */
+function lerCompromisso(txt){
+  const t = sem(txt);
+  if (/pedido — m7|pedido - m7/.test(t)) return null;
+  const tipo = /visita|passa(r|e)? aqui|dar uma passada|vem aqui|vir aqui|venha aqui|aparece aqui/.test(t) ? 'Visita'
+    : /me liga|ligar|liga pra|ligacao|telefona/.test(t) ? 'Ligação'
+    : /reuniao|video|chamada/.test(t) ? 'Videoconferência'
+    : /pode entregar|entrega(r)? (no|na|dia|amanha|hoje|segunda|terca|quarta|quinta|sexta|sabado)/.test(t) ? 'Entrega combinada' : null;
+  if (!tipo) return null;
+  let data = null;
+  if (/depois de amanha/.test(t)) data = addDias(hoje,2); else if (/amanha/.test(t)) data = addDias(hoje,1); else if (/\bhoje\b/.test(t)) data = hoje;
+  if (!data){ const w = ['domingo','segunda','terca','quarta','quinta','sexta','sabado'].findIndex(d=>new RegExp('\\b'+d).test(t)); if (w>=0){ const h = new Date(hoje+'T12:00:00').getDay(); data = addDias(hoje, ((w-h+7)%7)||7); } }
+  if (!data){ const m = t.match(/\bdia (\d{1,2})(?:\/(\d{1,2}))?\b/) || t.match(/\b(\d{1,2})\/(\d{1,2})\b/); if (m){ const d = +m[1]; let y = +hoje.slice(0,4), mm = m[2] ? +m[2] : +hoje.slice(5,7); const f = () => `${y}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if (!m[2] && f()<hoje){ mm++; if (mm>12){ mm=1; y++; } } if (d>=1 && d<=31 && mm>=1 && mm<=12) data = f(); } }
+  if (!data) return null;
+  const h = t.match(/\b(?:as|a partir das|umas|por volta das|la pelas)\s*(\d{1,2})(?:(?::|h)(\d{2}))?/) || t.match(/\b(\d{1,2})(?::(\d{2})|h(\d{2})?|\s?horas)/);
+  let ini = '09:00', semHora = true;
+  if (h){ let hh = +h[1]; const mi = h[2]||h[3]||'00'; if (/tarde|noite/.test(t) && hh<12) hh += 12; else if (hh>=1 && hh<=6 && !/manha/.test(t)) hh += 12; if (hh<=23){ ini = String(hh).padStart(2,'0')+':'+mi.padStart(2,'0'); semHora = false; } }
+  return {tipo, data, ini, semHora};
+}
+function compDaConversa(cv, m, x){
+  const c = cliente(cv.cli), vend = vendedor(c.vend)?.externo ? vendedor(c.vend).nome : (VEND().find(v=>v.externo)?.nome || 'Márcio');
+  const quem = ['Visita','Entrega combinada'].includes(x.tipo) ? vend : (cv.atendente || vend);
+  const k = criarComp({cli:c.id, tipo:x.tipo, titulo:x.tipo==='Visita'?'Visita pedida pelo cliente':x.tipo==='Ligação'?'Ligar para o cliente':x.tipo==='Entrega combinada'?'Entrega combinada no WhatsApp':'Chamada de vídeo com o cliente',
+    data:x.data, ini:x.ini, fim:somaMin(x.ini, x.tipo==='Ligação'?15:30), envolvidos:[quem, ...(c.contatos?.[0]?[c.contatos[0].nome]:[])], objetivo:'Combinado no WhatsApp: "'+m.txt.slice(0,160)+'"', resp:quem, auto:'conversa', conv:cv.id});
+  cv.msgs.push({de:'sis', t:new Date().toISOString(), txt:`Entrou na agenda: ${x.tipo} ${diaSem(x.data)} ${dataBR(x.data)} às ${x.ini} com ${quem}${x.semHora?'. O cliente não disse a hora: confirme com ele.':''}`});
+  return k;
+}
+function rodarCompConversa(){
+  let n = 0;
+  E.conversas.filter(cv=>cv.cli && cv.status!=='resolvida').forEach(cv=>cv.msgs.forEach(m=>{
+    if (m.de!=='cli' || m.comp!==undefined) return;
+    const x = lerCompromisso(m.txt);
+    if (!x || x.data<hoje){ m.comp = null; return; }
+    if (autoOn('comp-conv')){ m.comp = compDaConversa(cv, m, x).id; n++; } else m.comp = 0;   // 0 = fica como sugestão na conversa
+  }));
+  if (n) salvar();
+  return n;
+}
+function sugestaoComp(cv){
+  const i = cv.msgs.findIndex(m=>m.de==='cli' && m.comp===0); if (i<0) return '';
+  const x = lerCompromisso(cv.msgs[i].txt); if (!x) return '';
+  return `<div class="simula" style="background:var(--verde-veu)"><b>Parece um compromisso:</b> ${x.tipo} · ${diaSem(x.data)} ${dataBR(x.data)} às ${x.ini}${x.semHora?' (sem hora)':''} <button class="btn peq prim" onclick="marcarDaConversa(${cv.id},${i})">Marcar na agenda</button><button class="btn peq" onclick="E.conversas.find(c=>c.id===${cv.id}).msgs[${i}].comp=null;salvar();ir('atendimento')">Não é</button></div>`;
+}
+function marcarDaConversa(id, i){ const cv = E.conversas.find(c=>c.id===id), m = cv.msgs[i], x = lerCompromisso(m.txt); m.comp = compDaConversa(cv, m, x).id; salvar(); ir('atendimento'); toast('Compromisso na agenda'); }
+// opção do robô: o cliente pede a visita e o robô marca no primeiro horário livre do vendedor dele
+function roboVisita(cv){
+  const c = cliente(cv.cli);
+  if (!c) return 'Certo! Me fala o nome da empresa e o endereço, que o vendedor te procura para marcar.';
+  const quem = vendedor(c.vend)?.externo ? vendedor(c.vend).nome : (VEND().find(v=>v.externo)?.nome || 'Márcio'), s = horarioLivre(quem, addDias(hoje,1), 30, 9);
+  const k = criarComp({cli:c.id, tipo:'Visita', titulo:'Visita pedida no WhatsApp (robô)', data:s.data, ini:s.ini, fim:s.fim, envolvidos:[quem], objetivo:'O cliente pediu a visita pelo menu do WhatsApp.', resp:quem, auto:'robo', conv:cv.id});
+  cv.msgs.push({de:'sis', t:new Date().toISOString(), txt:`Robô marcou: Visita ${diaSem(k.data)} ${dataBR(k.data)} às ${k.ini} com ${quem}`});
+  return `Pronto! O vendedor passa aí ${diaSem(k.data)}, ${dataBR(k.data)}, às ${k.ini}. Se precisar mudar o horário, é só responder aqui.`;
+}
+
+/* ---------- versão 8: automações novas, exemplos de equipe e conversas que marcam compromisso (não apaga o que já existe) ---------- */
+function completar8(est){
+  const agora = Date.now(), isoM = m => new Date(agora - m*60000).toISOString(), D = n => addDias(hoje, n);
+  const novas = [
+    {id:'f-novo', nome:'Funil: contato novo no WhatsApp', acao:'vira cliente em Novo contato, com a etiqueta Cliente novo', on:true},
+    {id:'f-orc', nome:'Funil: orçamento enviado', acao:'Novo contato passa para Orçamento enviado (etiqueta "orçamento" na conversa ou orçamento marcado na ficha)', on:true},
+    {id:'f-resp', nome:'Funil: cliente respondeu o orçamento', acao:'passa para Negociação', on:true},
+    {id:'f-pedido', nome:'Funil: fez pedido', acao:'passa para Cliente ativo, de qualquer etapa', on:true},
+    {id:'f-parou', nome:'Funil: cliente ativo sem comprar', acao:'passa para Parou de comprar depois dos dias marcados em Regras', on:true},
+    {id:'f-perde', nome:'Funil: orçamento sem resposta', acao:'passa para Perdido (Sem resposta) depois dos dias marcados em Regras', on:false},
+    {id:'comp-conv', nome:'Agenda: cliente marcou dia e hora no WhatsApp', acao:'o compromisso entra sozinho na agenda de quem atende ou do vendedor', on:true},
+    {id:'comp-orc', nome:'Agenda: orçamento enviado', acao:'marca uma ligação de retorno para o vendedor, dias depois', on:true}
+  ];
+  novas.forEach(a=>{ if (!est.automacoes.some(x=>x.id===a.id)) est.automacoes.push(a); });
+  Object.assign(est.regras, {diasParou:est.regras.diasParou ?? 45, diasPerde:est.regras.diasPerde ?? 15, diasRetorno:est.regras.diasRetorno ?? 2});
+  // quem é o dono de cada compromisso de exemplo
+  const dono = {1:'Márcio', 2:'Vendedor 1', 3:'Márcio', 4:'Vendedor 2'};
+  est.compromissos.forEach(k=>{ if (!k.resp && dono[k.id]) k.resp = dono[k.id]; });
+  const c4 = est.compromissos.find(k=>k.id===4); if (c4 && c4.resultado && !c4.resData) c4.resData = c4.data;
+  let id = Math.max(0, ...est.compromissos.map(k=>k.id));
+  const ex = (cli, tipo, titulo, d, ini, fim, quem, resultado, resD, extra) => est.compromissos.push({id:++id, cli, tipo, titulo, data:D(d), ini, fim, envolvidos:[quem], objetivo:'', resultado, resData:resD==null?null:D(resD), resp:quem, ed:{quem, t:new Date(D(resD??d)+'T18:00:00').toISOString()}, ...(extra||{})});
+  if (!est.compromissos.some(k=>k.exEquipe)){
+    ex(1, 'Visita', 'Levar a tabela nova', -8, '09:00', '09:40', 'Vendedor 1', 'Deixou a tabela. Pediu amostra do pote 500 ml.', -8, {remarcado:1, exEquipe:1});
+    ex(2, 'Visita', 'Reposição do mês', -6, '15:00', '15:30', 'Vendedor 1', 'Fez o pedido na hora.', -6, {exEquipe:1});
+    ex(11, 'Ligação', 'Confirmar o pedido de copos', -4, '14:00', '14:15', 'Vendedor 1', 'Confirmou para a próxima rota.', -3, {exEquipe:1});
+    ex(9, 'Visita', 'Apresentar a linha de pizza', -2, '10:00', '10:40', 'Vendedor 1', '', null, {exEquipe:1});
+    ex(3, 'Visita', 'Mostrar o pote fitness', -5, '09:30', '10:00', 'Vendedor 2', 'Gostou, vai pedir pelo WhatsApp.', -5, {exEquipe:1});
+    ex(8, 'Ligação', 'Combinar a entrega em Pains', -3, '11:00', '11:15', 'Vendedor 2', 'Entrega combinada para quinta.', -3, {exEquipe:1});
+    ex(4, 'Visita', 'Visita do mês', -1, '08:30', '09:00', 'Vendedor 2', '', null, {exEquipe:1});
+    [['v1',1,-8,'09:05',false],['v1',2,-6,'15:02',true],['v2',3,-5,'09:34',false]].forEach(([vid,cli,d,h,cp])=>est.visitas.push({vid, cli, data:D(d), hora:h, motivo:cp?null:'Vai pedir pelo WhatsApp', comPedido:cp, loc:'no endereço do cliente (simulado)'}));
+    let tid = Math.max(0, ...est.tarefas.map(t=>t.id));
+    est.tarefas.push({id:++tid, cli:2, data:hoje, txt:'Conferir o limite novo do Cliente Y antes da reunião', resp:'dono', feita:null},
+                     {id:++tid, cli:4, data:D(-5), txt:'Mandar a tabela de padaria', resp:'v2', feita:D(-5)},
+                     {id:++tid, cli:1, data:D(-4), txt:'Mandar a foto do pote 500 ml', resp:'v1', feita:D(-2)});
+  }
+  // robô: opção de pedir visita
+  if (est.triagem && !est.triagem.opcoes.some(o=>o.acao==='visita')) est.triagem.opcoes.splice(1, 0, {txt:'Receber a visita do vendedor', fila:'pedidos', resp:'O robô marca no primeiro horário livre do vendedor e responde com o dia e a hora.', acao:'visita'});
+  // conversas de exemplo: uma marca visita, uma recebe orçamento, uma é de contato novo
+  let cid = Math.max(0, ...est.conversas.map(c=>c.id));
+  if (!est.conversas.some(c=>c.ex8)){
+    if (est.clientes.some(c=>c.id===8)) est.conversas.push({id:++cid, ex8:1, cli:8, nome:est.clientes.find(c=>c.id===8).nome, fone:'(37) 9xxxx-0008', atendente:null, status:'aberta', tags:[], csat:null, fila:'pedidos', bot:null,
+      msgs:[{de:'cli', t:isoM(9), txt:'Bom dia! Pode passar aqui amanhã às 10h? Quero ver as bandejas e o papel manteiga.'}]});
+    if (est.clientes.some(c=>c.id===10)) est.conversas.push({id:++cid, ex8:1, cli:10, nome:est.clientes.find(c=>c.id===10).nome, fone:'(37) 9xxxx-0010', atendente:'Stela', status:'aberta', tags:['orçamento'], csat:null, fila:'pedidos', bot:null,
+      msgs:[{de:'cli', t:isoM(190), txt:'Oi, quanto fica 500 caixas de hambúrguer e 1.000 guardanapos?'}, {de:'nos', t:isoM(176), txt:'Oi! Te mandei o orçamento aqui. Seguro o preço até sexta.', por:'Stela'}]});
+    est.conversas.push({id:++cid, ex8:1, cli:null, nome:'Juliana · Doceria (exemplo)', fone:'(37) 9xxxx-0042', atendente:null, status:'aberta', tags:[], csat:null, fila:null, bot:null,
+      msgs:[{de:'cli', t:isoM(4), txt:'Oi! Vocês vendem forminha de brigadeiro no atacado?'}]});
+  }
+}
+
+/* ============================================================ APIs E INTEGRAÇÕES: o que está ligado, o que é simulado e o que falta contratar
+   A situação é a de verdade em 15/10/2026: no protótipo, quase tudo é simulado. Só o mapa e as fotos do catálogo
+   buscam dado de fora, e esses dois têm teste de conexão real. */
+const SIT_API = {
+  on:['Conectado','ok'], sim:['Simulado no protótipo','esp'], arq:['Por arquivo','escura'], contratar:['A contratar',''], off:['Não conectado','']
+};
+const APIS = [
+  {g:'Vendas online', n:'Mercado Livre', para:'Anúncios ligados ao estoque, vendas entrando sozinhas, nota, etiqueta, perguntas e reclamações', sit:'sim', onde:`abaML='painel';canalMkt='ml';ir('ml')`, falta:'Autorizar o aplicativo do sistema na conta da M7 no Mercado Livre'},
+  {g:'Vendas online', n:'Mercado Pago', para:'Repasse de cada venda do ML, para a conciliação com o banco', sit:'sim', onde:`abaML='repasses';canalMkt='ml';ir('ml')`, falta:'Vem junto com a autorização do Mercado Livre'},
+  {g:'Vendas online', n:'Shopee', para:'Mesmo estoque e mesma nota do Mercado Livre', sit:'off', onde:`canalMkt='shopee';ir('ml')`, falta:'Entrar ou não está em aberto com a M7'},
+  {g:'Vendas online', n:'TikTok Shop', para:'Mesmo estoque e mesma nota do Mercado Livre', sit:'off', onde:`canalMkt='tiktok';ir('ml')`, falta:'Entrar ou não está em aberto com a M7'},
+  {g:'Vendas online', n:'Magalu', para:'Mesmo estoque e mesma nota do Mercado Livre', sit:'off', onde:`canalMkt='magalu';ir('ml')`, falta:'Entrar ou não está em aberto com a M7'},
+  {g:'Vendas online', n:'Catálogo online (m7distribuidora.netlify.app)', para:'Fotos dos produtos no sistema. O pedido do site chega como texto no WhatsApp e vira pedido aqui', sit:'on', teste:'fotos', onde:`ir('produtos')`, falta:'Publicar no domínio próprio da M7'},
+  {g:'Nota fiscal', n:'API fiscal (Focus NFe ou Brasil NFe)', para:'Emitir NF-e e NFC-e, DANFE e XML, cancelar e mandar o XML ao Mercado Livre', sit:'contratar', onde:`abaML='emitir';canalMkt='ml';ir('ml')`, falta:'Escolher e contratar o emissor. Precisa do certificado A1 e do CSC da NFC-e'},
+  {g:'Nota fiscal', n:'SEFAZ-MG · notas de compra', para:'Baixar o XML de toda nota emitida contra o CNPJ da M7 (manifestação)', sit:'sim', onde:`abaCompra='notas';ir('compras')`, falta:'Vem junto com a API fiscal e o certificado A1'},
+  {g:'Atendimento', n:'WhatsApp Business (API oficial da Meta)', para:'Várias pessoas no mesmo número, robô de triagem, filas, mensagens agendadas', sit:'contratar', onde:`abaAt='conversas';ir('atendimento')`, falta:'Conta Meta Business da M7 e o número que vai para a API'},
+  {g:'Financeiro', n:'Banco da M7 (extrato e Pix)', para:'Extrato entrando sozinho para a conciliação e baixa automática do Pix', sit:'sim', onde:`abaFin='conciliacao';ir('financeiro')`, falta:'Banco e tipo de acesso: [a definir com o Márcio]'},
+  {g:'Dados da M7', n:'Pedidook', para:'Clientes, vendas, produtos e custos que estão no sistema hoje', sit:'arq', onde:`modoCli='mapa';ir('clientes')`, falta:'Hoje é exportação manual (clientes de 12/10, vendas até 12/10, produtos de 07/10)'},
+  {g:'Dados da M7', n:'Eficaz ERP (Logus)', para:'Sistema que a loja usa hoje: vendas, NFC-e e cadastro de produtos', sit:'arq', onde:null, falta:'Lido só em consulta em 14/10. Não há integração'},
+  {g:'Mapa', n:'Mapa de ruas (Esri, pelo Leaflet)', para:'Mapa da carteira com os clientes', sit:'on', teste:'mapa', onde:`modoCli='mapa';ir('clientes')`, falta:'—'},
+  {g:'Mapa', n:'Google Maps', para:'Street View, caminho até o cliente e posição no número exato', sit:'arq', onde:`modoCli='mapa';ir('clientes')`, falta:'Os links abrem o Google. As posições foram conferidas uma vez, por arquivo'}
+];
+let testeApi = {};
+function testarApi(i){
+  const a = APIS[i], url = a.teste==='fotos' ? `https://m7distribuidora.netlify.app/fotos/p-${(P.find(p=>p.f)||{}).c}.jpg?t=${Date.now()}` : `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/14/9134/6119?t=${Date.now()}`;
+  testeApi[i] = {st:'testando'}; ir('apis');
+  const ini = Date.now(), img = new Image(), fim = ok => { testeApi[i] = {st:ok?'ok':'falhou', ms:Date.now()-ini, t:hora()}; reg(`Testou a conexão com ${a.n}: ${ok?'respondeu':'não respondeu'}`); salvar(); if (tela==='apis') ir('apis'); };
+  img.onload = () => fim(true); img.onerror = () => fim(false); setTimeout(()=>{ if (testeApi[i]?.st==='testando') fim(false); }, 8000); img.src = url;
+}
+VIEWS.apis = () => {
+  const conta = k => APIS.filter(a=>a.sit===k).length;
+  const grupos = [...new Set(APIS.map(a=>a.g))];
+  return topo('APIs e integrações', 'Com quem o sistema conversa: o que está ligado, o que ainda é simulado e o que falta contratar') + `
+  <div class="grade g4" style="margin-bottom:16px">
+    <div class="cartao kpi escuro"><div class="rot">Conectadas</div><div class="val">${conta('on')}</div><div class="sub">buscam dado de fora agora</div></div>
+    <div class="cartao kpi"><div class="rot">Simuladas no protótipo</div><div class="val">${conta('sim')}</div><div class="sub">a tela funciona, a conexão é de mentira</div></div>
+    <div class="cartao kpi"><div class="rot">Por arquivo</div><div class="val">${conta('arq')}</div><div class="sub">dado importado à mão</div></div>
+    <div class="cartao kpi"><div class="rot">A contratar</div><div class="val ${conta('contratar')?'verm':''}">${conta('contratar')}</div><div class="sub">${conta('off')} canal(is) sem decisão</div></div>
+  </div>
+  <div class="aviso">No sistema de verdade, cada API liga com a autorização da conta da M7 e a chave fica guardada no servidor, nunca na tela. Aqui aparece só a situação de cada uma.</div>
+  ${grupos.map(g=>`<div class="cartao tabela" style="margin-top:16px"><h2>${g}</h2><table style="table-layout:fixed;min-width:860px"><tr><th style="width:19%">Integração</th><th style="width:27%">Para quê</th><th style="width:15%">Situação</th><th style="width:22%">O que falta</th><th style="width:17%"></th></tr>
+    ${APIS.map((a,i)=>({a,i})).filter(x=>x.a.g===g).map(({a,i})=>{ const t = testeApi[i], s = SIT_API[a.sit];
+      return `<tr><td><b>${esc(a.n)}</b></td><td style="font-size:13px">${esc(a.para)}</td>
+      <td style="white-space:nowrap"><span class="tag ${s[1]}">${s[0]}</span>${t?`<br><small class="${t.st==='ok'?'pos':t.st==='falhou'?'verm':'suave'}">${t.st==='testando'?'testando...':t.st==='ok'?`respondeu em ${t.ms} ms · ${t.t}`:`não respondeu · ${t.t}`}</small>`:''}</td>
+      <td class="suave" style="font-size:13px">${esc(a.falta)}</td>
+      <td style="white-space:nowrap">${a.teste?`<button class="btn peq" onclick="testarApi(${i})">Testar</button> `:''}${a.onde?`<button class="btn peq" onclick="${a.onde}">Ver no sistema</button>`:''}</td></tr>`; }).join('')}
+  </table></div>`).join('')}
+  <p class="suave" style="font-size:12px;margin-top:10px">Situação de 15/10/2026. O teste de conexão só existe no que já busca dado de fora (mapa e fotos do catálogo).</p>`;
 };
 
 /* ============================================================ REGRAS E ACESSOS */
@@ -2802,6 +3238,12 @@ VIEWS.ajustes = () => {
       ${(E.automacoes||[]).map(a=>`<div class="forma"><span><b>${esc(a.nome)}</b><br><small class="suave">${esc(a.acao)} · ${E.tarefas.filter(t=>t.auto===a.id && !t.feita).length} tarefa(s) aberta(s) agora</small></span><label class="chk"><input type="checkbox" ${a.on?'checked':''} onchange="togAuto('${a.id}',this.checked)"> ${a.on?'ligada':'desligada'}</label></div>`).join('')}
       <p class="suave" style="font-size:12px;margin-top:8px">Roda quando alguém abre o sistema. Não abre tarefa repetida para o mesmo cliente.</p>
     </div>
+    <div class="cartao"><h2>Funil e agenda automáticos</h2>
+      ${regra('diasParou','Parou de comprar depois de','cliente ativo sem pedido há mais destes dias','','dias')}
+      ${regra('diasPerde','Orçamento perdido depois de','sem resposta do cliente (só se a regra estiver ligada)','','dias')}
+      ${regra('diasRetorno','Ligação de retorno do orçamento','quantos dias depois do envio','','dias')}
+      <p class="suave" style="font-size:12px;margin-top:8px">Liga e desliga cada regra em Automações, acima.</p>
+    </div>
     <div class="cartao"><h2>Compras e estoque</h2>
       ${regra('segDias','Dias de segurança','somados ao prazo do fornecedor no ponto de pedido','','dias')}
       ${regra('cobertura','Comprar para quantos dias','a sugestão cobre o prazo mais estes dias de venda','','dias')}
@@ -2823,9 +3265,11 @@ VIEWS.ajustes = () => {
       <p class="suave" style="font-size:12px;margin-top:8px">Acima do desconto máximo, o pedido espera alguém com o acesso "libera desconto".</p>
     </div>
     <div class="cartao" style="grid-column:1/-1"><h2>Quem vê o quê</h2>
-      <div class="tabela"><table><tr><th>Perfil</th>${TELAS.map(t=>`<th style="font-size:10px;writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 4px">${t[1]}</th>`).join('')}<th style="font-size:10px;writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 4px">Custo e lucro</th><th style="font-size:10px;writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 4px">Libera desconto</th></tr>
-      ${E.perfis.map((p,i)=>`<tr><td style="white-space:nowrap">${esc(p.nome)}</td>${TELAS.map(([t])=>`<td style="text-align:center;padding:6px 4px"><input type="checkbox" ${p.telas.includes(t)?'checked':''} ${p.id==='dono'?'disabled':''} onchange="togTela(${i},'${t}',this.checked)"></td>`).join('')}<td style="text-align:center"><input type="checkbox" ${p.custo?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].custo=this.checked;reg('${p.nome}: '+(this.checked?'passa a ver':'deixa de ver')+' custo');salvar()"></td><td style="text-align:center"><input type="checkbox" ${p.aprova?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].aprova=this.checked;reg('${p.nome}: '+(this.checked?'pode':'não pode')+' liberar desconto');salvar()"></td></tr>`).join('')}</table></div>
-      <p class="suave" style="font-size:12px;margin-top:8px">Troque o perfil no rodapé do menu para ver como cada um enxerga o sistema.</p>
+      <div class="tabela"><table class="acessos"><tr><th>Tela ou permissão</th>${E.perfis.map(p=>`<th style="text-align:center">${esc(p.nome)}</th>`).join('')}</tr>
+      ${TELAS.map(([t,n])=>`<tr><td><b>${n}</b></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.telas.includes(t)?'on':''}"><input type="checkbox" ${p.telas.includes(t)?'checked':''} ${p.id==='dono'?'disabled':''} onchange="togTela(${i},'${t}',this.checked)">${p.telas.includes(t)?'vê':'não vê'}</label></td>`).join('')}</tr>`).join('')}
+      <tr><td><b>Custo e lucro</b><br><small class="suave">custo, margem e sobra em todas as telas</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.custo?'on':''}"><input type="checkbox" ${p.custo?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].custo=this.checked;reg('${p.nome}: '+(this.checked?'passa a ver':'deixa de ver')+' custo');salvar();ir('ajustes')">${p.custo?'vê':'não vê'}</label></td>`).join('')}</tr>
+      <tr><td><b>Libera desconto</b><br><small class="suave">aprova pedido acima do desconto máximo</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.aprova?'on':''}"><input type="checkbox" ${p.aprova?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].aprova=this.checked;reg('${p.nome}: '+(this.checked?'pode':'não pode')+' liberar desconto');salvar();ir('ajustes')">${p.aprova?'pode':'não pode'}</label></td>`).join('')}</tr></table></div>
+      <p class="suave" style="font-size:12px;margin-top:8px">Clique para ligar ou desligar. O Márcio (dono) vê tudo e não muda. Troque o perfil no rodapé do menu para ver como cada um enxerga o sistema.</p>
     </div>
     <div class="cartao" style="grid-column:1/-1"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Histórico de alterações</h2><input class="campo" style="max-width:280px" placeholder="Filtrar..." value="${esc(filtroLog)}" onchange="filtroLog=this.value;ir('ajustes')"></div>
       <div class="tabela" style="max-height:340px;overflow:auto"><table><tr><th>Quando</th><th>Quem</th><th>O quê</th></tr>${logs.map(l=>`<tr><td class="suave" style="white-space:nowrap">${new Date(l.t).toLocaleString('pt-BR').slice(0,17)}</td><td style="white-space:nowrap">${esc(l.quem)}</td><td>${esc(l.acao)}${l.ped?` · <a href="#" onclick="verPedido(${l.ped});return false">#${l.ped}</a>`:''}</td></tr>`).join('')}</table></div>
@@ -2854,7 +3298,7 @@ VIEWS.ajustes = () => {
 };
 function mudaRegra(k,v,l){ E.regras[k]=num(v); reg(`${l}: ${v}`); salvar(); }
 function addFaixa(){ const min=parseInt(document.getElementById('fx-min').value), d=num(document.getElementById('fx-desc').value); if(!min||!d) return toast('Preencha a quantidade e o desconto'); E.faixas.push({cat:document.getElementById('fx-cat').value, min, desc:d}); reg(`Faixa nova: a partir de ${min} un, −${d}%`); salvar(); ir('ajustes'); }
-function togTela(i,t,on){ const p=E.perfis[i]; p.telas = on ? [...new Set([...p.telas,t])] : p.telas.filter(x=>x!==t); if(!p.telas.length) p.telas=['pedidos']; reg(`${p.nome}: ${on?'passa a ver':'deixa de ver'} ${TELAS.find(x=>x[0]===t)[1]}`); salvar(); }
+function togTela(i,t,on){ const p=E.perfis[i]; p.telas = on ? [...new Set([...p.telas,t])] : p.telas.filter(x=>x!==t); if(!p.telas.length) p.telas=['pedidos']; reg(`${p.nome}: ${on?'passa a ver':'deixa de ver'} ${TELAS.find(x=>x[0]===t)[1]}`); salvar(); if(tela==='ajustes') ir('ajustes'); }
 function exportar(o){
   const csv = (cab, L) => '﻿' + [cab.join(';'), ...L.map(l=>l.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';'))].join('\n');
   let nome, txt, tipo='text/csv';
