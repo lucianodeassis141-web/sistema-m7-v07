@@ -402,7 +402,9 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
 <script src="produtos.js"></script>
 <script src="anuncios.js"></script>
 <script src="clientes-reais.js"></script>
-<script src="compradores-ml.js" onerror="window.COMPRADORES_ML=[]"></script>
+<!-- compradores do ML: o público (sem nome nem endereço de pessoa física) vai no link; no PC o completo carrega depois e vale ele -->
+<script src="compradores-ml-publico.js" onerror="window.COMPRADORES_ML=[]"></script>
+<script src="compradores-ml.js"></script>
 <script src="vendas-reais.js" onerror="window.VENDAS_REAIS=window.VENDAS_REAIS||null"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Google Maps só no PC: google-chave.js fica fora do git e da publicação; sem ele o mapa usa a Esri -->
@@ -2236,7 +2238,8 @@ CRM.mapa = meus => {
         <div class="forma"><span>No lugar do comércio (achado pelo nome no Google Maps)</span><b>${prec('lugar')}</b></div>
         <div class="forma"><span>No número exato (conferido no Google Maps)</span><b>${prec('número')}</b></div>
         <div class="forma"><span>Só pela rua (o número não foi achado)</span><b>${prec('rua')}</b></div>
-        <div class="forma"><span>Pelo bairro</span><b>${prec('bairro')}</b></div>
+        <div class="forma"><span>Pelo bairro</span><b>${prec('bairro')}</b></div>${prec('cidade')?`
+        <div class="forma"><span>Só pela cidade (comprador do ML, sem endereço no link)</span><b>${prec('cidade')}</b></div>`:''}
         <p class="suave" style="font-size:12px;margin-top:6px">Quando o mapa não conhece o número, o ponto cai na rua ou no centro do bairro. O vendedor pode corrigir no app, na porta do cliente.</p></div>
       <div class="cartao" style="margin-top:10px"><h2>Bairros com mais clientes</h2>${conta(c=>c.cid==='Arcos'?c.b:'').filter(([k])=>k!=='—').slice(0,10).map(([k,n])=>`<div class="forma" style="cursor:pointer" onclick="zoomBairro('${esc(k).replace(/'/g,"\\'")}')"><span>${esc(k)}</span><b>${n}</b></div>`).join('')}</div>
       <div class="cartao" style="margin-top:10px"><h2>Cidades</h2>${conta(c=>c.cid).slice(0,8).map(([k,n])=>`<div class="forma"><span>${esc(k)}</span><b>${n}</b></div>`).join('')}</div>
