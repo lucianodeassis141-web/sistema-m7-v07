@@ -365,6 +365,10 @@ html.escuro [style*="color:#C2185B"]{color:#FF6FA3!important}
 html.escuro [style*="color:#777"]{color:var(--suave)!important}
 </style>
 <script>
+/* login (16/10/2026): sem entrar pela login.html volta para ela; ?teste pula (teste automático) */
+(function(){ if(/[?&]teste/.test(location.search)) return; let ok = null; try{ ok = sessionStorage.getItem('m7-login'); }catch(e){ ok = 'dono'; }
+  if(!ok) location.replace('login.html'); })();
+function sair(){ try{ sessionStorage.removeItem('m7-login'); sessionStorage.removeItem('m7-login-aplicado'); }catch(e){} location.replace('login.html'); }
 /* tema: #escuro / #claro no endereço manda; senão vale o último escolhido; o padrão é claro */
 (function(){ let t = location.hash==='#escuro'?'escuro':location.hash==='#claro'?'claro':null;
   try{ if(t) localStorage.setItem('m7-v07-tema', t); else t = localStorage.getItem('m7-v07-tema'); }catch(e){}
@@ -384,7 +388,8 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
     <select id="perfil" onchange="E.usuario=this.value;salvar();ir(TELAS_DE().includes(tela)?tela:TELAS_DE()[0])"></select>
     Protótipo v0.8 · 15/10/2026<br>
     <a href="referencias/proton-erp.html" target="_blank" style="color:var(--on-dark-dim)">Referência: Próton ERP</a><br>
-    <a href="#" onclick="zerar();return false" style="color:var(--on-dark-dim)">Zerar dados de exemplo</a>
+    <a href="#" onclick="zerar();return false" style="color:var(--on-dark-dim)">Zerar dados de exemplo</a><br>
+    <a href="#" onclick="sair();return false" style="color:var(--on-dark-dim)">Sair</a>
   </div>
 </aside>
 
@@ -687,6 +692,8 @@ function gerarTitulos(ped, est){
 let E;
 try { E = JSON.parse(localStorage.getItem(CHAVE)); } catch(e){ E = null; }
 if (!E || !E.perfis) { E = estadoInicial(); }
+// quem acabou de entrar pela login.html abre como dono (Márcio)
+try { if (sessionStorage.getItem('m7-login')==='dono' && !sessionStorage.getItem('m7-login-aplicado')) { E.usuario = 'dono'; sessionStorage.setItem('m7-login-aplicado','1'); } } catch(e){}
 // versão 5: nicho do cliente e histórico de conversas para o relatório dos atendentes (não apaga o que já existe)
 function completar(est){
   if ((est.ver||0) < 5){
