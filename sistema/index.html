@@ -2269,9 +2269,15 @@ function iniciarMapa(){
   if (_mapa){ _mapa.remove(); _mapa = null; }
   _mapa = L.map(el, {scrollWheelZoom:true});
   if (vista) _mapa.setView(vista.c, vista.z); else _mapa.setView([-20.284,-45.539], 14);
-  // o servidor do OpenStreetMap bloqueia arquivo aberto do computador (sem site de origem) e a CARTO pede chave: usa o mapa de ruas da Esri
+  // mapa do Google (ruas); a Esri fica como camada de reserva no seletor. Com a chave da API (google-chave.js), usa o Google oficial
   if (L.gridLayer.googleMutant && window.google?.maps && !window.googleRecusado) L.gridLayer.googleMutant({type:'roadmap', maxZoom:20}).addTo(_mapa);
-  else L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Mapa © Esri · dados do OpenStreetMap e outros'}).addTo(_mapa);
+  else {
+    const gRuas = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=pt-BR&x={x}&y={y}&z={z}', {subdomains:'0123', maxZoom:20, attribution:'Mapa © Google'});
+    const gSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=pt-BR&x={x}&y={y}&z={z}', {subdomains:'0123', maxZoom:20, attribution:'Imagens © Google'});
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Mapa © Esri · dados do OpenStreetMap e outros'});
+    gRuas.addTo(_mapa);
+    L.control.layers({'Google ruas':gRuas, 'Google satélite':gSat, 'Esri':esri}).addTo(_mapa);
+  }
   _marc = {};
   ptsMapa().forEach(c=>{ const p = posCli(c);
     _marc[c.id] = L.circleMarker([p.lat,p.lng], {radius:conferido(c)||c.ml?7:6, color:c.ml?'#2D3277':conferido(c)?'#000':'#fff', weight:conferido(c)||c.ml?2.5:1.5, fillColor:corCli(c), fillOpacity:.9}).bindPopup(()=>popupCli(c), {minWidth:240}).addTo(_mapa); });
