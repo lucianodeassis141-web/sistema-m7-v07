@@ -384,10 +384,9 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
   <div class="logo"><img src="../identidade-visual/marca/m7-horizontal-cor-escuro.svg" alt="M7 Distribuidora"><div class="seg">Embalagens · Descartáveis · Higiene e Limpeza · Bomboniere · Festa · Açaí · Frios</div></div>
   <nav id="menu"></nav>
   <div class="rodape">
-    Entrar como
-    <select id="perfil" onchange="E.usuario=this.value;salvar();ir(TELAS_DE().includes(tela)?tela:TELAS_DE()[0])"></select>
-    Protótipo v0.8 · 15/10/2026<br>
-    <a href="referencias/proton-erp.html" target="_blank" style="color:var(--on-dark-dim)">Referência: Próton ERP</a><br>
+    <span id="entrar-como" hidden>Entrar como
+    <select id="perfil" onchange="E.usuario=this.value;salvar();ir(TELAS_DE().includes(tela)?tela:TELAS_DE()[0])"></select></span>
+    Sistema M7 · etapa 1 · 24/10/2026<br>
     <a href="#" onclick="zerar();return false" style="color:var(--on-dark-dim)">Zerar dados de exemplo</a><br>
     <a href="#" onclick="sair();return false" style="color:var(--on-dark-dim)">Sair</a>
   </div>
@@ -542,9 +541,10 @@ const ICONES = {
   apis:'<path d="M8 7V3M16 7V3"/><rect x="5" y="7" width="14" height="6" rx="2"/><path d="M12 13v4a3 3 0 0 1-3 3H7"/>',
   ajustes:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
 };
+/* etapa 1 (proposta fechada em 23/10/2026): sistema da loja e CRM. Vendedores (etapa 3) e APIs ficam fora do menu e não abrem */
 const TELAS = [
-  ['inicio','Início'],['atendimento','Atendimento'],['pedidos','Pedidos'],['entregas','Entregas'],['produtos','Produtos e estoque'],['compras','Compras'],['ml','Marketplaces'],
-  ['clientes','Clientes (CRM)'],['vendedores','Vendedores'],['financeiro','Financeiro'],['ajustes','Regras e acessos'],['apis','APIs e integrações']
+  ['inicio','Início'],['atendimento','Atendimento'],['pedidos','Pedidos'],['entregas','Entregas'],['produtos','Produtos e estoque'],['compras','Compras'],['ml','Mercado Livre'],
+  ['clientes','Clientes (CRM)'],['financeiro','Financeiro'],['ajustes','Regras e acessos']
 ];
 
 /* ---------- estado de exemplo ---------- */
@@ -560,7 +560,7 @@ function estadoInicial(){
       {id:'dono', nome:'Márcio (dono)', telas:TELAS.map(t=>t[0]), custo:true, aprova:true},
       {id:'balcao', nome:'Balcão da loja', telas:['atendimento','pedidos','produtos','clientes','financeiro'], custo:false},
       {id:'expedicao', nome:'Expedição', telas:['entregas','pedidos','produtos','ml'], custo:false},
-      {id:'v1', nome:'Vendedor 1 (app)', telas:['vendedores','clientes'], custo:false}
+      {id:'orion', nome:'Orion (admin)', telas:TELAS.map(t=>t[0]), custo:true, aprova:true}
     ],
     tabelas:[{id:'varejo', nome:'Varejo (B2C)', ajuste:0},{id:'atacado', nome:'Atacado (B2B)', ajuste:null}],
     condicoes:[
@@ -694,8 +694,14 @@ function gerarTitulos(ped, est){
 let E;
 try { E = JSON.parse(localStorage.getItem(CHAVE)); } catch(e){ E = null; }
 if (!E || !E.perfis) { E = estadoInicial(); }
-// quem acabou de entrar pela login.html abre como dono (Márcio)
-try { if (sessionStorage.getItem('m7-login')==='dono' && !sessionStorage.getItem('m7-login-aplicado')) { E.usuario = 'dono'; sessionStorage.setItem('m7-login-aplicado','1'); } } catch(e){}
+// etapa 1 (24/10/2026): quem já tinha dados salvos perde o perfil do vendedor do app e ganha o admin Orion
+E.perfis = E.perfis.filter(p=>p.id!=='v1');
+if (!E.perfis.some(p=>p.id==='orion')) E.perfis.push({id:'orion', nome:'Orion (admin)', telas:TELAS.map(t=>t[0]), custo:true, aprova:true});
+if (!E.perfis.some(p=>p.id===E.usuario)) E.usuario = 'dono';
+E.v7oculto = true;
+// quem acabou de entrar pela login.html abre no próprio perfil (Márcio = dono, Orion = admin)
+const LOGIN = (()=>{ try{ return sessionStorage.getItem('m7-login'); }catch(e){ return null; } })();
+try { if (['dono','orion'].includes(LOGIN) && !sessionStorage.getItem('m7-login-aplicado')) { E.usuario = LOGIN; sessionStorage.setItem('m7-login-aplicado','1'); } } catch(e){}
 // versão 5: nicho do cliente e histórico de conversas para o relatório dos atendentes (não apaga o que já existe)
 function completar(est){
   if ((est.ver||0) < 5){
@@ -1011,7 +1017,7 @@ const cliente = id => E.clientes.find(c => c.id == id);
 const vendedor = id => E.vendedores.find(v => v.id === id);
 const VEND = () => E.vendedores.filter(v => !v.canal);          // o Mercado Livre é canal, não vendedor com meta
 const perfil = () => E.perfis.find(p=>p.id===E.usuario) || E.perfis[0];
-const TELAS_DE = () => perfil().telas;
+const TELAS_DE = () => { const L = perfil().telas.filter(t=>TELAS.some(x=>x[0]===t)); return L.length ? L : ['pedidos']; };
 const veCusto = () => perfil().custo;
 const aprova = () => !!perfil().aprova;
 function precoCalc(prod, cli, q=1, est=E){
@@ -1152,6 +1158,7 @@ function ir(t){
   if (nFun || nComp) toast([nFun?nFun+' cliente(s) mudaram de etapa sozinhos no funil':'', nComp?nComp+' compromisso(s) entraram sozinhos na agenda':''].filter(Boolean).join(' · '));
   rodarAutomacoes();
   rodarAgendadas();
+  document.getElementById('entrar-como').hidden = LOGIN!=='orion';
   document.getElementById('perfil').innerHTML = E.perfis.map(p=>`<option value="${p.id}" ${p.id===E.usuario?'selected':''}>${esc(p.nome)}</option>`).join('');
   document.getElementById('menu').innerHTML = TELAS.filter(([id])=>TELAS_DE().includes(id)).map(([id,n]) =>
     `<button class="${id===t||(t==='novo'&&id==='pedidos')?'ativo':''}" onclick="ir('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONES[id]}</svg>${n}</button>`).join('');
@@ -1206,8 +1213,6 @@ function pendencias(){
   if (ra.length) L.push({ic:'A', al:1, t:`${ra.length} produto(s) da curva A no ponto de pedido`, s:ra.slice(0,4).map(p=>p.n).join(' · ')+'. São os que mais vendem: falta deles é venda perdida.', go:`abaCompra='repor';ir('compras')`});
   const pv = E.pagar.filter(t=>!t.pago && t.venc<hoje);
   if (veCusto() && pv.length) L.push({ic:'$', al:1, t:`${pv.length} conta(s) a pagar vencida(s): ${brl(pv.reduce((s,t)=>s+t.valor,0))}`, s:pv.map(t=>t.forn).join(' · '), go:`abaFin='pagar';ir('financeiro')`});
-  const ex = E.extrato.filter(x=>!x.conc);
-  if (veCusto() && ex.length) L.push({ic:'$', t:`${ex.length} lançamento(s) do banco sem conferir`, s:'Conciliação: cada entrada e saída do extrato ligada a um título.', go:`abaFin='conciliacao';ir('financeiro')`});
   return L;
 }
 /* clientes reais que pararam de comprar (relatório Venda geral do Pedidook): o primeiro quadro do Bom dia */
@@ -1274,7 +1279,7 @@ VIEWS.inicio = () => {
   const meta = VEND().reduce((s,v)=>s+v.meta,0), proj = vMes/diaHoje*diasMes;
   const venc = E.titulos.filter(t=>!t.pago && t.venc<hoje), vVenc = venc.reduce((s,t)=>s+t.valor,0);
   const pend = pendencias();
-  return topo('Bom dia, Márcio', 'Resumo da M7 em '+dataBR(hoje), `<button class="btn prim" onclick="novoPedido()">+ Novo pedido</button><button class="btn" onclick="ir('atendimento')">Atendimento</button>`) + `
+  return topo('Bom dia, '+(E.usuario==='orion'?'Orion':'Márcio'), 'Resumo da M7 em '+dataBR(hoje), `<button class="btn prim" onclick="novoPedido()">+ Novo pedido</button><button class="btn" onclick="ir('atendimento')">Atendimento</button>`) + `
   <div class="aviso">Produtos, preços, custos, estoque e anúncios do Mercado Livre são reais (Pedidook de 07/10 e as fichas dos anúncios). Clientes, vendedores, pedidos, contas e extrato são de exemplo, menos o quadro dos clientes que pararam de comprar, que vem das vendas reais do Pedidook até 12/10.</div>
   ${sumidosHTML()}
   ${E.v7oculto?'':novidades7HTML()}
@@ -1284,7 +1289,6 @@ VIEWS.inicio = () => {
     <div class="cartao kpi"><div class="rot">Pedidos de hoje</div><div class="val">${sp[n-1]}</div>${variacao(sp[n-1], sp[n-2], 'sobre ontem')}${spark(sp)}<div class="sub">ticket médio ${brl(sp[n-1]?sv[n-1]/sp[n-1]:0)}</div></div>`; })()}
     <div class="cartao kpi"><div class="rot">Vendas do mês</div><div class="val">${brl(vMes)}</div><div class="sub">projeção ${brl(proj)} · meta ${brl(meta)}</div><div class="barra"><i style="width:${Math.min(100,vMes/meta*100)}%"></i><b style="left:${Math.min(100,diaHoje/diasMes*100)}%" title="onde deveria estar hoje"></b></div></div>
     ${veCusto()?`<div class="cartao kpi"><div class="rot">Lucro bruto do mês</div><div class="val">${brl(vMes-cMes)}</div><div class="sub">margem ${pct((vMes-cMes)/vMes)} · <a href="#" onclick="abaFin='dre';ir('financeiro');return false">resultado</a></div></div>`:''}
-    <div class="cartao kpi"><div class="rot">A receber vencido</div><div class="val ${vVenc?'verm':''}">${brl(vVenc)}</div><div class="sub">${venc.length} título(s) · <a href="#" onclick="abaFin='receber';ir('financeiro');return false">ver</a></div></div>
   </div>
   <div class="grade g32" style="margin-top:16px;align-items:start">
     <div class="cartao moldura"><h2>Precisa de você agora</h2>
@@ -1292,8 +1296,6 @@ VIEWS.inicio = () => {
     </div>
     <div class="cartao"><h2>Vendas por canal no mês</h2>
       ${(()=>{ const m={}; mes.forEach(p=>{const k=p.origem; m[k]=(m[k]||0)+totalPedido(p);}); const mx=Math.max(1,...Object.values(m)); return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(k)}</span><b>${brl(v)}</b></div><div class="barra"><i style="width:${v/mx*100}%"></i></div></div>`).join(''); })()}
-      <h2 style="margin-top:18px">Vendedores no mês</h2>
-      ${VEND().map(v=>{const vv=vendidoVend(v.id);return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:14px"><b>${esc(v.nome)}</b><span>${brl(vv)} <span class="suave">de ${brl(v.meta)}</span></span></div><div class="barra"><i style="width:${Math.min(100,vv/v.meta*100)}%"></i><b style="left:${diaHoje/diasMes*100}%"></b></div></div>`}).join('')}
     </div>
   </div>
   <div class="grade g2" style="margin-top:16px;align-items:start">
@@ -1319,7 +1321,8 @@ let convSel = 1, filtroConv = 'abertas', abaAt = 'conversas', macroUsada = null,
 VIEWS.atendimento = () => {
   const nAg = E.agendadas.filter(a=>a.status==='agendada').length;
   const ab = (k,n) => `<button class="btn ${abaAt===k?'prim':''}" onclick="abaAt='${k}';ir('atendimento')">${n}</button>`;
-  const abas = ab('conversas','Conversas') + ab('agendadas','Agendadas'+(nAg?` (${nAg})`:'')) + ab('equipe','Chat da equipe') + (aprova()?ab('triagem','Robô e filas'):'') + (veCusto()?ab('relatorio','Relatório dos atendentes'):'') + `<span class="tag escura">meta: responder em até ${SLA_MIN} min</span>`;
+  if (abaAt==='equipe') abaAt = 'conversas';
+  const abas = ab('conversas','Conversas') + ab('agendadas','Agendadas'+(nAg?` (${nAg})`:'')) + (aprova()?ab('triagem','Robô e filas'):'') + (veCusto()?ab('relatorio','Relatório dos atendentes'):'') + `<span class="tag escura">meta: responder em até ${SLA_MIN} min</span>`;
   if (abaAt==='relatorio' && veCusto()) return topo('Atendimento', 'Como cada atendente responde no WhatsApp: tempo, prazo, padrão, nota do cliente e venda', abas) + relatorioAt();
   if (abaAt==='agendadas') return topo('Atendimento', 'Mensagens que saem sozinhas no dia e na hora marcados', abas) + agendadasHTML();
   if (abaAt==='equipe') return topo('Atendimento', 'A equipe combina aqui, sem o cliente ver', abas) + equipeHTML();
@@ -1655,7 +1658,7 @@ function notificacoes(){
   const L = [], eu = nomeAtual();
   E.conversas.filter(c=>espera(c)>SLA_MIN).forEach(c=>{ const u = [...c.msgs].reverse().find(m=>m.de==='cli'); L.push({k:'sla'+c.id+u.t, ic:'W', al:1, t:`${c.nome} esperando há ${tempo(espera(c))}`, s:(filaDe(c.fila)?.nome||'sem fila')+' · '+(c.atendente||'sem atendente'), q:u.t, go:`convSel=${c.id};abaAt='conversas';filtroConv='abertas';ir('atendimento')`}); });
   E.conversas.filter(c=>c.status!=='resolvida' && !c.atendente && !c.bot && espera(c)<=SLA_MIN && espera(c)>0).forEach(c=>{ const u = [...c.msgs].reverse().find(m=>m.de==='cli'); L.push({k:'nova'+c.id+u.t, ic:'W', t:`Conversa nova sem dono: ${c.nome}`, s:filaDe(c.fila)?.nome||'sem fila', q:u.t, go:`convSel=${c.id};abaAt='conversas';filtroConv='sem';ir('atendimento')`}); });
-  feedEquipe().filter(m=>m.de!==eu && new RegExp('@'+eu+'(?![A-Za-zÀ-ú])','i').test(m.txt)).forEach(m=>L.push({k:'men'+m.t, ic:'@', t:`${m.de} te chamou${m.conv?' na conversa de '+m.nome:' no chat da equipe'}`, s:m.txt, q:m.t, go:m.conv?`convSel=${m.conv};abaAt='conversas';filtroConv='todas';ir('atendimento')`:`abaAt='equipe';ir('atendimento')`}));
+  feedEquipe().filter(m=>m.conv && m.de!==eu && new RegExp('@'+eu+'(?![A-Za-zÀ-ú])','i').test(m.txt)).forEach(m=>L.push({k:'men'+m.t, ic:'@', t:`${m.de} te chamou${m.conv?' na conversa de '+m.nome:' no chat da equipe'}`, s:m.txt, q:m.t, go:m.conv?`convSel=${m.conv};abaAt='conversas';filtroConv='todas';ir('atendimento')`:`abaAt='equipe';ir('atendimento')`}));
   (E.agendadas||[]).filter(a=>a.status==='enviada' && a.enviada.slice(0,10)===hoje).forEach(a=>L.push({k:'ag'+a.id, ic:'⏱', t:`Mensagem agendada saiu para ${cliente(a.cli)?.nome}`, s:a.motivo+' · '+a.txt, q:a.enviada, go:`abaAt='agendadas';ir('atendimento')`}));
   pendencias().filter(p=>p.ic!=='W').forEach(p=>L.push({k:'p'+hoje+p.t, ic:p.ic, al:p.al, t:p.t, s:p.s, q:null, go:p.go}));
   return L.sort((a,b)=>(b.q||'').localeCompare(a.q||''));
@@ -1764,7 +1767,7 @@ const FILTROS_PED = [['abertos','Em andamento'],['aguardando','Aguardando libera
 VIEWS.pedidos = () => {
   const lista = E.pedidos.filter(p=>(abaPed==='todos'||(abaPed==='abertos'?!['entregue','cancelado'].includes(p.status):p.status===abaPed)) && (!origemPed||p.origem===origemPed)).sort((a,b)=>b.id-a.id);
   const origens = [...new Set(E.pedidos.map(p=>p.origem))];
-  return topo('Pedidos', 'Loja, catálogo/WhatsApp, vendedor externo e Mercado Livre num caminho só: pedido, separação, nota, entrega', `<button class="btn" onclick="colarCatalogo()">Colar pedido do catálogo</button><button class="btn prim" onclick="novoPedido()">+ Novo pedido</button>`) + `
+  return topo('Pedidos', 'Loja, catálogo/WhatsApp e Mercado Livre num caminho só: pedido, separação, carga e entrega', `<button class="btn" onclick="colarCatalogo()">Colar pedido do catálogo</button><button class="btn prim" onclick="novoPedido()">+ Novo pedido</button>`) + `
   <div class="filtros">${FILTROS_PED.map(([k,n])=>{const q=k==='todos'?E.pedidos.length:k==='abertos'?E.pedidos.filter(p=>!['entregue','cancelado'].includes(p.status)).length:E.pedidos.filter(p=>p.status===k).length; return `<button class="btn peq ${abaPed===k?'prim':''}" onclick="abaPed='${k}';ir('pedidos')">${n} <small>${q}</small></button>`;}).join('')}
     <select class="campo" style="max-width:220px" onchange="origemPed=this.value;ir('pedidos')"><option value="">Todos os canais</option>${origens.map(o=>`<option ${o===origemPed?'selected':''}>${esc(o)}</option>`).join('')}</select></div>
   <div class="cartao tabela"><table>
@@ -2575,9 +2578,9 @@ function celEnviar(){
 /* ============================================================ FINANCEIRO: caixa, receber, pagar, fluxo, conciliação, resultado */
 let abaFin = 'caixa';
 VIEWS.financeiro = () => {
-  const abas = [['caixa','Caixa do dia'],['receber','A receber'],...(veCusto()?[['pagar','A pagar'],['fluxo','Fluxo de caixa'],['conciliacao','Conciliação'+(E.extrato.some(x=>!x.conc)?' ('+E.extrato.filter(x=>!x.conc).length+')':'')],['dre','Resultado do mês'],['lucro','Lucro por produto']]:[])];
+  const abas = [['caixa','Caixa do dia'],...(veCusto()?[['pagar','A pagar'],['dre','Resultado do mês']]:[])];
   if (!abas.some(a=>a[0]===abaFin)) abaFin='caixa';
-  return topo('Financeiro', 'Caixa, contas a receber e a pagar, fluxo de caixa, conciliação do banco e resultado') + `<div class="abas">${abas.map(([k,n])=>`<button class="btn peq ${abaFin===k?'prim':''}" onclick="abaFin='${k}';ir('financeiro')">${n}</button>`).join('')}</div>` + (FIN[abaFin]||FIN.caixa)();
+  return topo('Financeiro', 'Fechamento do caixa, contas a pagar e resultado do mês') + `<div class="abas">${abas.map(([k,n])=>`<button class="btn peq ${abaFin===k?'prim':''}" onclick="abaFin='${k}';ir('financeiro')">${n}</button>`).join('')}</div>` + (FIN[abaFin]||FIN.caixa)();
 };
 const FORMAS = ['Dinheiro','Pix','Cartão'];
 const FIN = {};
@@ -2726,7 +2729,7 @@ FIN.lucro = () => {
    Os anúncios são os reais (anuncios.js). A integração de verdade fala com a API do ML: pedido entra por aviso
    (webhook), estoque sobe sozinho, nota e etiqueta vão e voltam. Aqui os botões simulam essas chamadas. */
 let abaML = 'painel', canalMkt = 'ml', perML = 30, selEmit = new Set();
-const CANAIS = [['ml','Mercado Livre',1],['shopee','Shopee',0],['tiktok','TikTok Shop',0],['magalu','Magalu',0]];
+const CANAIS = [['ml','Mercado Livre',1]];
 function podeAnunciar(i){ const a=AN[i], p=porCod[a?.c], d=estD(p); if(d==null) return 0; return Math.max(0, Math.floor((d - E.regras.mlSeg)/a.fator)); }
 function vendeSemTer(i){ return (E.mlEst[i]||0) > podeAnunciar(i); }
 function sincronizar(i){
@@ -2738,12 +2741,13 @@ const mlPeds = () => E.pedidos.filter(p=>p.ml);
 VIEWS.ml = () => {
   const noAr = AN.map((a,i)=>({a,i})).filter(x=>x.a.sit==='no ar');
   const sem = noAr.filter(x=>vendeSemTer(x.i)).length, abertos = mlPeds().filter(p=>['novo','faturado'].includes(p.status)).length, msgs = E.mlMsgs.filter(m=>!m.resp).length;
-  const canais = `<div class="abas" style="margin-bottom:18px">${CANAIS.map(([k,n,on])=>`<button class="btn ${canalMkt===k?'prim':''}" onclick="canalMkt='${k}';ir('ml')">${n} ${on?'<span class="tag ok" style="margin-left:4px">conectado</span>':'<span class="tag" style="margin-left:4px">não conectado</span>'}</button>`).join('')}</div>`;
+  canalMkt = 'ml';
+  const canais = '', _canais = `<div class="abas" style="margin-bottom:18px">${CANAIS.map(([k,n,on])=>`<button class="btn ${canalMkt===k?'prim':''}" onclick="canalMkt='${k}';ir('ml')">${n} ${on?'<span class="tag ok" style="margin-left:4px">conectado</span>':'<span class="tag" style="margin-left:4px">não conectado</span>'}</button>`).join('')}</div>`;
   if (canalMkt!=='ml') { const c=CANAIS.find(x=>x[0]===canalMkt); return topo('Marketplaces', 'Todos os canais de venda online num lugar só, com o mesmo estoque, a mesma nota e o mesmo financeiro') + canais + `
     <div class="cartao moldura"><h2>${c[1]} ainda não está conectado</h2><p style="margin-bottom:12px">Quando a M7 decidir entrar no ${c[1]}, ele aparece aqui igual ao Mercado Livre:</p>
     ${['Anúncios ligados ao estoque da loja, com o mesmo produto do ERP e o kit certo','Vendas entrando sozinhas em Pedidos, com nota e etiqueta','Estoque único: vendeu num canal, baixa em todos','Perguntas e reclamações com prazo','Repasse e sobra por venda, conferidos com o banco'].map(x=>`<div class="forma"><span>${x}</span><span class="tag">quando conectar</span></div>`).join('')}
     <p class="suave" style="font-size:13px;margin-top:12px">Entrar ou não no ${c[1]} está em aberto com a M7.</p></div>`; }
-  return topo('Marketplaces', 'Todos os canais de venda online num lugar só, com o mesmo estoque, a mesma nota e o mesmo financeiro', `<button class="btn" onclick="simularVendaML()">Simular venda nova no ML</button>`) + canais + `
+  return topo('Mercado Livre', 'Anúncios, vendas, perguntas e repasse, com o mesmo estoque da loja', `<button class="btn" onclick="simularVendaML()">Simular venda nova no ML</button>`) + canais + `
   <div class="grade g4" style="margin-bottom:16px">
     <div class="cartao kpi escuro"><div class="rot">Anúncios no ar</div><div class="val">${noAr.length}</div><div class="sub">de ${AN.length} preparados</div></div>
     <div class="cartao kpi"><div class="rot">Mostram estoque que não tem</div><div class="val ${sem?'verm':''}">${sem}</div><div class="sub">margem de segurança ${E.regras.mlSeg} un</div></div>
@@ -3228,7 +3232,7 @@ VIEWS.ajustes = () => {
   const cats = [...new Set(P.map(p=>p.cat))].sort(), R = E.regras;
   const regra = (k,l,sub,pre='',suf='') => `<div class="forma"><span><b>${l}</b><br><small class="suave">${sub}</small></span><span style="display:flex;gap:6px;align-items:center">${pre}<input class="campo mini" value="${n0(R[k])}" onchange="mudaRegra('${k}',this.value,'${l}')">${suf}</span></div>`;
   const logs = E.log.filter(l=>!filtroLog||sem(l.acao+' '+l.quem).includes(sem(filtroLog))).slice(-80).reverse();
-  return topo('Regras e acessos', 'Tudo o que muda preço, prazo, comissão e desconto, quem vê o quê, e o histórico de quem mudou o quê') + `
+  return topo('Regras e acessos', 'Tudo o que muda preço, prazo e desconto, quem vê o quê, e o histórico de quem mudou o quê') + `
   <div class="aviso">Os números das regras são de exemplo, menos imposto e embalagem (Márcio, 28/08) e as tarifas do ML (simulador, 23/09). Quem define é o Márcio.</div>
   <div class="grade g2" style="align-items:start">
     <div class="cartao"><h2>Tabelas de preço</h2>
@@ -3250,11 +3254,6 @@ VIEWS.ajustes = () => {
       ${E.faixas.map((f,i)=>`<div class="forma"><span>${f.cat?esc(f.cat):'Todos os produtos'}: a partir de <b>${f.min}</b> un</span><span><b>−${f.desc}%</b> <button class="x" onclick="E.faixas.splice(${i},1);reg('Tirou uma faixa de preço por quantidade');salvar();ir('ajustes')">×</button></span></div>`).join('')}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><select class="campo" id="fx-cat" style="flex:1;min-width:150px"><option value="">Todos os produtos</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select><input class="campo mini" id="fx-min" placeholder="a partir de"><input class="campo mini" id="fx-desc" placeholder="% desc"><button class="btn" onclick="addFaixa()">Adicionar</button></div>
     </div>
-    <div class="cartao"><h2>Comissão escalonada</h2>
-      ${E.comissao.map((f,i)=>`<div class="forma"><span>${i===0?'Até':'De '+brl(E.comissao[i-1].ate)+' até'} ${f.ate==null?'acima':brl(f.ate)}</span><span><input class="campo mini" style="width:70px" type="number" value="${f.pct}" onchange="E.comissao[${i}].pct=+this.value;reg('Comissão faixa ${i+1}: '+this.value+'%');salvar()"> %</span></div>`).join('')}
-      <div class="forma"><span><b>Comissão calculada sobre</b><br><small class="suave">faturado: o que saiu com nota · recebido: o que o cliente já pagou</small></span><select class="campo" style="width:auto" onchange="E.regras.comBase=this.value;reg('Comissão passa a ser '+(this.value==='recebido'?'sobre o recebido':'sobre o faturado'));salvar();ir('ajustes')"><option value="faturado" ${E.regras.comBase!=='recebido'?'selected':''}>Faturado</option><option value="recebido" ${E.regras.comBase==='recebido'?'selected':''}>Recebido</option></select></div>
-      <p class="suave" style="font-size:12px;margin-top:8px">A faixa atingida no mês vale para o total. <span class="pend">Regra a definir pelo Márcio antes de janeiro.</span></p>
-    </div>
     <div class="cartao"><h2>Automações</h2>
       ${(E.automacoes||[]).map(a=>`<div class="forma"><span><b>${esc(a.nome)}</b><br><small class="suave">${esc(a.acao)} · ${E.tarefas.filter(t=>t.auto===a.id && !t.feita).length} tarefa(s) aberta(s) agora</small></span><label class="chk"><input type="checkbox" ${a.on?'checked':''} onchange="togAuto('${a.id}',this.checked)"> ${a.on?'ligada':'desligada'}</label></div>`).join('')}
       <p class="suave" style="font-size:12px;margin-top:8px">Roda quando alguém abre o sistema. Não abre tarefa repetida para o mesmo cliente.</p>
@@ -3271,26 +3270,12 @@ VIEWS.ajustes = () => {
       ${regra('leadPadrao','Prazo de entrega padrão','quando o fornecedor não tem prazo próprio','','dias')}
       <p class="suave" style="font-size:12px;margin-top:8px">O prazo de cada fornecedor muda em Compras.</p>
     </div>
-    <div class="cartao"><h2>Nota fiscal</h2>
-      <div class="forma"><span><b>Emissor</b><br><small class="suave">quem fala com a SEFAZ, assina o XML e gera o DANFE</small></span><span style="text-align:right;font-size:13px">${esc(E.fiscal?.emissor)}</span></div>
-      <div class="forma"><span><b>Ambiente</b><br><small class="suave">só vai para produção depois que o contador conferir algumas notas</small></span><span class="tag esp">${esc(E.fiscal?.ambiente)}</span></div>
-      <div class="forma"><span><b>Regime</b></span><span>Simples Nacional · CSOSN 102</span></div>
-      <div class="forma"><span><b>Certificado digital A1 da M7</b></span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span><b>Credenciamento de NFC-e (CSC) na SEFAZ-MG</b></span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span><b>Tabela fiscal validada pelo contador</b><br><small class="suave">NCM, CFOP, CSOSN, CEST e origem de cada produto</small></span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span><b>Campos de IBS e CBS</b><br><small class="suave">obrigatórios para o Simples em 2027 (data a confirmar na NT 2025.002)</small></span><span class="tag">preparado</span></div>
-      <div class="forma"><span><b>Notas de compra (manifestação)</b><br><small class="suave">a API baixa o XML de toda nota emitida contra o CNPJ da M7</small></span><span class="tag ok">ligado no protótipo</span></div>
-    </div>
-    <div class="cartao"><h2>Metas, verba flex e desconto máximo</h2>
-      ${VEND().map(v=>{const i=E.vendedores.indexOf(v);return `<div class="forma"><span><b>${esc(v.nome)}</b></span><span style="display:flex;gap:6px;align-items:center;font-size:13px;flex-wrap:wrap;justify-content:flex-end">meta <input class="campo mini" value="${v.meta}" onchange="E.vendedores[${i}].meta=num(this.value);reg('Meta de ${v.nome}: '+this.value);salvar()"> flex <input class="campo mini" style="width:70px" value="${v.verba}" onchange="E.vendedores[${i}].verba=num(this.value);reg('Verba flex de ${v.nome}: '+this.value);salvar()"> desc. máx. <input class="campo mini" style="width:50px" value="${v.descMax}" onchange="E.vendedores[${i}].descMax=num(this.value);reg('Desconto máximo de ${v.nome}: '+this.value+'%');salvar()">%</span></div>`;}).join('')}
-      <p class="suave" style="font-size:12px;margin-top:8px">Acima do desconto máximo, o pedido espera alguém com o acesso "libera desconto".</p>
-    </div>
     <div class="cartao" style="grid-column:1/-1"><h2>Quem vê o quê</h2>
       <div class="tabela"><table class="acessos"><tr><th>Tela ou permissão</th>${E.perfis.map(p=>`<th style="text-align:center">${esc(p.nome)}</th>`).join('')}</tr>
-      ${TELAS.map(([t,n])=>`<tr><td><b>${n}</b></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.telas.includes(t)?'on':''}"><input type="checkbox" ${p.telas.includes(t)?'checked':''} ${p.id==='dono'?'disabled':''} onchange="togTela(${i},'${t}',this.checked)">${p.telas.includes(t)?'vê':'não vê'}</label></td>`).join('')}</tr>`).join('')}
-      <tr><td><b>Custo e lucro</b><br><small class="suave">custo, margem e sobra em todas as telas</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.custo?'on':''}"><input type="checkbox" ${p.custo?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].custo=this.checked;reg('${p.nome}: '+(this.checked?'passa a ver':'deixa de ver')+' custo');salvar();ir('ajustes')">${p.custo?'vê':'não vê'}</label></td>`).join('')}</tr>
-      <tr><td><b>Libera desconto</b><br><small class="suave">aprova pedido acima do desconto máximo</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.aprova?'on':''}"><input type="checkbox" ${p.aprova?'checked':''} ${p.id==='dono'?'disabled':''} onchange="E.perfis[${i}].aprova=this.checked;reg('${p.nome}: '+(this.checked?'pode':'não pode')+' liberar desconto');salvar();ir('ajustes')">${p.aprova?'pode':'não pode'}</label></td>`).join('')}</tr></table></div>
-      <p class="suave" style="font-size:12px;margin-top:8px">Clique para ligar ou desligar. O Márcio (dono) vê tudo e não muda. Troque o perfil no rodapé do menu para ver como cada um enxerga o sistema.</p>
+      ${TELAS.map(([t,n])=>`<tr><td><b>${n}</b></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.telas.includes(t)?'on':''}"><input type="checkbox" ${p.telas.includes(t)?'checked':''} ${['dono','orion'].includes(p.id)?'disabled':''} onchange="togTela(${i},'${t}',this.checked)">${p.telas.includes(t)?'vê':'não vê'}</label></td>`).join('')}</tr>`).join('')}
+      <tr><td><b>Custo e lucro</b><br><small class="suave">custo, margem e sobra em todas as telas</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.custo?'on':''}"><input type="checkbox" ${p.custo?'checked':''} ${['dono','orion'].includes(p.id)?'disabled':''} onchange="E.perfis[${i}].custo=this.checked;reg('${p.nome}: '+(this.checked?'passa a ver':'deixa de ver')+' custo');salvar();ir('ajustes')">${p.custo?'vê':'não vê'}</label></td>`).join('')}</tr>
+      <tr><td><b>Libera desconto</b><br><small class="suave">aprova pedido acima do desconto máximo</small></td>${E.perfis.map((p,i)=>`<td style="text-align:center"><label class="acesso ${p.aprova?'on':''}"><input type="checkbox" ${p.aprova?'checked':''} ${['dono','orion'].includes(p.id)?'disabled':''} onchange="E.perfis[${i}].aprova=this.checked;reg('${p.nome}: '+(this.checked?'pode':'não pode')+' liberar desconto');salvar();ir('ajustes')">${p.aprova?'pode':'não pode'}</label></td>`).join('')}</tr></table></div>
+      <p class="suave" style="font-size:12px;margin-top:8px">Clique para ligar ou desligar. O Márcio (dono) e o admin veem tudo e não mudam. O admin troca o perfil no rodapé do menu para ver como cada um enxerga o sistema.</p>
     </div>
     <div class="cartao" style="grid-column:1/-1"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Histórico de alterações</h2><input class="campo" style="max-width:280px" placeholder="Filtrar..." value="${esc(filtroLog)}" onchange="filtroLog=this.value;ir('ajustes')"></div>
       <div class="tabela" style="max-height:340px;overflow:auto"><table><tr><th>Quando</th><th>Quem</th><th>O quê</th></tr>${logs.map(l=>`<tr><td class="suave" style="white-space:nowrap">${new Date(l.t).toLocaleString('pt-BR').slice(0,17)}</td><td style="white-space:nowrap">${esc(l.quem)}</td><td>${esc(l.acao)}${l.ped?` · <a href="#" onclick="verPedido(${l.ped});return false">#${l.ped}</a>`:''}</td></tr>`).join('')}</table></div>
@@ -3302,15 +3287,10 @@ VIEWS.ajustes = () => {
     </div>
     <div class="cartao"><h2>A definir com o Márcio</h2>
       <div class="forma"><span>Ajuste da tabela de atacado</span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span>Regra de comissão dos vendedores</span><span class="tag esp">antes de jan/2027</span></div>
-      <div class="forma"><span>Verba flex e desconto máximo por vendedor</span><span class="tag esp">pendente</span></div>
       <div class="forma"><span>Acréscimo das condições a prazo</span><span class="tag esp">pendente</span></div>
       <div class="forma"><span>No site, o cliente paga ou o pedido vai para aprovação?</span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span>Nota fiscal por API: qual emissor (Focus NFe, Brasil NFe ou outro)</span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span>Quem é o contador da M7 e se valida a tabela fiscal</span><span class="tag esp">pendente</span></div>
       <div class="forma"><span>A M7 vende a prazo? Limite de crédito de cada cliente</span><span class="tag esp">pendente</span></div>
       <div class="forma"><span>Prazo de entrega de cada fornecedor</span><span class="tag esp">pendente</span></div>
-      <div class="forma"><span>Onde os vendedores vão rodar (sinal de internet)</span><span class="tag esp">pendente</span></div>
       <div class="forma"><span>Peso e medida dos produtos no cadastro</span><span class="tag esp">${P.filter(p=>p.kg).length} de ${P.length} têm peso</span></div>
       <div class="forma"><span>Estoque mínimo por produto</span><span class="tag esp">${P.filter(p=>p.min).length} têm mínimo</span></div>
       <div class="forma"><span>EAN dos produtos (o ML exige em algumas categorias)</span><span class="tag esp">${P.filter(p=>!p.ean).length} sem EAN</span></div>
