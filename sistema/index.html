@@ -386,7 +386,7 @@ function trocarTema(){ const e = document.documentElement.classList.toggle('escu
   <div class="rodape">
     <span id="entrar-como" hidden>Entrar como
     <select id="perfil" onchange="E.usuario=this.value;salvar();ir(TELAS_DE().includes(tela)?tela:TELAS_DE()[0])"></select></span>
-    Sistema M7 · etapa 1 · 24/10/2026<br>
+    Sistema M7 v1 · etapa 1 · 24/10/2026<br>
     <a href="#" onclick="zerar();return false" style="color:var(--on-dark-dim)">Zerar dados de exemplo</a><br>
     <a href="#" onclick="sair();return false" style="color:var(--on-dark-dim)">Sair</a>
   </div>
@@ -680,7 +680,7 @@ function estadoInicial(){
     {id:5, cli:1, nome:'Cliente X (exemplo)', fone:'(37) 9xxxx-0005', atendente:'Márcio', status:'resolvida', tags:['entrega'], csat:4,
      msgs:[{de:'cli', t:min(1500), txt:'Chegou tudo certinho, obrigado.'},{de:'nos', t:min(1490), txt:'Nós que agradecemos!', por:'Márcio'}]}
   ];
-  E0.log = [{t:new Date().toISOString(), quem:'Sistema', acao:'Sistema iniciado com os dados de exemplo'}];
+  E0.log = [];
   completar(E0);
   return E0;
 }
@@ -2873,7 +2873,7 @@ function marcaEmit(id, on){ on ? selEmit.add(id) : selEmit.delete(id); ir('ml');
 function marcaTodasEmit(){ const L = paraEmitir(); if (selEmit.size===L.length) selEmit.clear(); else L.forEach(p=>selEmit.add(p.id)); ir('ml'); }
 ML.emitir = () => {
   const L = paraEmitir().sort((a,b)=>a.id-b.id), feitas = mlPeds().filter(p=>p.nf).sort((a,b)=>b.id-a.id).slice(0,15);
-  return `<div class="aviso verde">A nota e a etiqueta saem daqui, sem abrir o Mercado Livre nem o Eficaz: a nota vai para a SEFAZ pela API fiscal, o XML sobe para o ML e a etiqueta volta para a impressora térmica. Neste protótipo é simulado, em homologação.</div>
+  return `<div class="aviso verde">A etiqueta sai daqui, sem abrir o Mercado Livre, e vai para a impressora térmica. A nota fiscal entra na etapa 2: até lá, continua saindo pelo sistema de hoje.</div>
   <div class="cartao tabela"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><h2 style="margin:0">Para emitir</h2>
     <span style="display:flex;gap:6px;flex-wrap:wrap">${L.length?`<button class="btn peq" onclick="marcaTodasEmit()">${selEmit.size===L.length?'Desmarcar todas':'Marcar todas'}</button><button class="btn prim" onclick="emitirML()">Emitir nota e etiqueta das marcadas (${selEmit.size})</button>`:''}</span></div>
   <table><tr><th></th><th>Venda</th><th>Anúncio</th><th>Falta</th><th class="num">Valor</th><th></th></tr>
@@ -3311,6 +3311,8 @@ function exportar(o){
 }
 
 ir(TELAS_DE()[0]);
+// v1 (24/10/2026): o histórico de alterações começa limpo, uma vez só, depois da primeira abertura
+if (!E.v1){ E.log = []; E.v1 = true; salvar(); }
 </script>
 </body>
 </html>
